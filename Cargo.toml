@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+  "rts-core",
+  "rts-server",
+  "rts-front"
+]
