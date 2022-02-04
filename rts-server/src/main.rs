@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use actix_files as fs;
+use actix_web::http::Cookie;
 use actix_web::{
     get, middleware, post, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
 };
@@ -24,13 +25,15 @@ use serde::Deserialize;
 use diesel::r2d2::ConnectionManager;
 use r2d2::Pool;
 
-use self::models::User;
+use self::models::{NewUser, User};
 use self::schema::users;
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 /// How long before lack of client response causes a timeout
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
+
+const AUTH_COOKIE_NAME: &str = "_token";
 
 pub type PostgresPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -121,14 +124,34 @@ struct RegisterInfo {
     email: String,
 }
 
+pub fn create_user<'a>(
+    conn: &PgConnection,
+    username: &'a str,
+    password: &'a str,
+    email: &'a str,
+) -> User {
+    let new_user = NewUser {
+        username,
+        password,
+        email,
+    };
+
+    diesel::insert_into(users::table)
+        .values(&new_user)
+        .get_result(conn)
+        .expect("Error creating user")
+}
+
 #[post("/register")]
-async fn register(info: web::Json<RegisterInfo>) -> impl Responder {
-    // TODO
+async fn register(info: web::Json<RegisterInfo>, state: web::Data<AppState>) -> impl Responder {
+    let conn = state.pool.get().expect("Could not connect to the database");
     println!(
         "Register request from {} with password {} and mail {}",
         info.username, info.password, info.email
     );
-    HttpResponse::Ok().body("Register")
+    let user = create_user(&conn, &info.username, &info.password, &info.email);
+    println!("User registered with id {}", user.id);
+    HttpResponse::Ok().body("Registered user")
 }
 
 #[derive(Deserialize)]
@@ -149,9 +172,13 @@ async fn login(info: web::Json<LoginInfo>) -> impl Responder {
 
 #[post("/logout")]
 async fn logout() -> impl (Responder) {
-    // TODO
-    println!("Logout request");
-    HttpResponse::Ok().body("Logout")
+    HttpResponse::Ok()
+        .cookie(
+            Cookie::build(AUTH_COOKIE_NAME, "")
+                .max_age(time::Duration::zero())
+                .finish(),
+        )
+        .body("Logged out")
 }
 
 #[derive(Deserialize)]
