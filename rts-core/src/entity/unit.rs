@@ -1,5 +1,9 @@
+use std::fmt::Display;
+
 use crate::entity::skill::Skill;
 use crate::exceptions::RtsException;
+
+const CLASSIC_UNIT_COST: i16 = 20;
 
 pub struct Unit {
     max_health: i16,
@@ -13,6 +17,19 @@ pub struct Unit {
     armor: i16,
     range: i16,
     skills: Vec<Skill>,
+}
+
+#[derive(Debug)]
+pub enum UnitType {
+    Classic,
+}
+
+impl UnitType {
+    pub fn get_cost(&self) -> i16 {
+        match &self {
+            UnitType::Classic => CLASSIC_UNIT_COST,
+        }
+    }
 }
 
 impl Unit {
@@ -125,6 +142,14 @@ impl Unit {
     }
 }
 
+impl Display for UnitType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            UnitType::Classic => write!(f, "Classic"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test_unit {
 
@@ -223,5 +248,4 @@ mod test_unit {
             assert_eq!(&9, unit.get_range());
         }
     }
-
 }
