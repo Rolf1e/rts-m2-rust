@@ -9,6 +9,8 @@ extern crate diesel;
 pub mod models;
 pub mod schema;
 
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
@@ -43,6 +45,7 @@ pub type PostgresPool = Pool<ConnectionManager<PgConnection>>;
 pub struct AppState<'a> {
     pool: PostgresPool,
     argon2_config: Config<'a>,
+    tokens: Arc<RwLock<HashMap<String, i32>>>,
 }
 
 /// do websocket handshake and start `MyWebSocket` actor
@@ -138,7 +141,7 @@ pub fn create_user<'a>(
     let mut salt = vec![0u8; 64];
     OsRng.fill_bytes(&mut salt);
 
-   let hashed_password = argon2::hash_encoded(password.as_bytes(), &salt, config).unwrap();
+    let hashed_password = argon2::hash_encoded(password.as_bytes(), &salt, config).unwrap();
     let new_user = NewUser {
         username,
         password: &hashed_password,
@@ -187,14 +190,34 @@ async fn login(info: web::Json<LoginInfo>, state: web::Data<AppState<'_>>) -> im
         "Login request from {} with password {}",
         info.username, info.password
     );
-    let matching_user = &matching_users[0];
-    println!("Found matching user {:?}", matching_user);
-    // TODO check password
-    let is_valid =
-        argon2::verify_encoded(&matching_user.password, info.password.as_bytes()).unwrap();
-    match is_valid {
-        true => HttpResponse::Ok().body("Logged in"), // TODO
-        false => HttpResponse::Ok().body("Invalid username or password"), //TODO
+    if matching_users.is_empty() {
+        HttpResponse::BadRequest().body("Invalid username or password")
+    } else if matching_users.len() > 1 {
+        panic!("Found multiple matching usernames!")
+    } else {
+        let matching_user = &matching_users[0];
+        println!("Found matching user {:?}", matching_user);
+        let is_valid =
+            argon2::verify_encoded(&matching_user.password, info.password.as_bytes()).unwrap();
+        if is_valid {
+            let mut raw_token = vec![0u8; 64];
+            OsRng.fill_bytes(&mut raw_token);
+            let token = base64::encode(&raw_token);
+            state
+                .tokens
+                .write()
+                .expect("Couldn't access the token storage")
+                .insert(token.clone(), matching_user.id);
+            HttpResponse::Ok()
+                .cookie(
+                    Cookie::build(AUTH_COOKIE_NAME, token)
+                        .max_age(time::Duration::days(31))
+                        .finish(),
+                )
+                .body("Logged in")
+        } else {
+            HttpResponse::BadRequest().body("Invalid username or password")
+        }
     }
 }
 
@@ -245,12 +268,15 @@ async fn main() -> std::io::Result<()> {
         .build(ConnectionManager::<PgConnection>::new(database_url))
         .expect("Could not build connection pool");
 
+    let tokens = Arc::new(RwLock::new(HashMap::new()));
+
     HttpServer::new(move || {
         App::new()
             // bind the database
             .data(AppState {
                 pool: pool.clone(),
                 argon2_config: Config::default(),
+                tokens: tokens.clone(),
             })
             // enable logger
             .wrap(middleware::Logger::default())
