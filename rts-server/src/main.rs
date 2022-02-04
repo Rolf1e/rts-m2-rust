@@ -3,11 +3,20 @@
 //! or [python console client](https://github.com/actix/examples/blob/master/websocket/websocket-client.py)
 //! could be used for testing.
 
+#[macro_use]
+extern crate diesel;
+
+pub mod models;
+pub mod schema;
+
+use std::env;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use actix_files as fs;
-use actix_web::{get, post, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_web::{
+    get, middleware, post, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
+};
 use actix_web_actors::ws;
 use serde::Deserialize;
 
@@ -15,6 +24,8 @@ use rts_core::components::game::Game;
 use rts_core::entity::game_actions::Action;
 use rts_core::entity::player::Player;
 use rts_core::entity::unit::UnitType;
+
+use self::models::{NewAi, NewUser, User, AI};
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -48,11 +59,7 @@ impl Actor for MyWebSocket {
 
 /// Handler for `ws::Message`
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWebSocket {
-    fn handle(
-        &mut self,
-        msg: Result<ws::Message, ws::ProtocolError>,
-        ctx: &mut Self::Context,
-    ) {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         // process websocket messages
         println!("WS: {:?}", msg);
         match msg {
@@ -111,7 +118,10 @@ struct RegisterInfo {
 #[post("/register")]
 async fn register(info: web::Json<RegisterInfo>) -> impl Responder {
     // TODO
-    println!("Register request from {} with password {} and mail {}", info.username, info.password, info.email);
+    println!(
+        "Register request from {} with password {} and mail {}",
+        info.username, info.password, info.email
+    );
     HttpResponse::Ok().body("Register")
 }
 
@@ -124,12 +134,15 @@ struct LoginInfo {
 #[post("/login")]
 async fn login(info: web::Json<LoginInfo>) -> impl Responder {
     // TODO
-    println!("Login request from {} with password {}", info.username, info.password);
+    println!(
+        "Login request from {} with password {}",
+        info.username, info.password
+    );
     HttpResponse::Ok().body("Login")
 }
 
 #[post("/logout")]
-async fn logout() -> impl(Responder) {
+async fn logout() -> impl (Responder) {
     // TODO
     println!("Logout request");
     HttpResponse::Ok().body("Logout")
@@ -141,7 +154,7 @@ struct AiInfo {
 }
 
 #[post("/submit_ai")]
-async fn submit_ai(info: web::Json<AiInfo>) -> impl(Responder) {
+async fn submit_ai(info: web::Json<AiInfo>) -> impl (Responder) {
     // TODO
     println!("Ai submit request with ai {}", info.ai);
     HttpResponse::Ok().body("Submit AI")
@@ -152,7 +165,6 @@ async fn leaderboard() -> impl Responder {
     // TODO
     HttpResponse::Ok().body("Leaderboard")
 }
-
 
 async fn start(game: &Game) {
     println!("Launch game");
@@ -193,6 +205,8 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
     env_logger::init();
 
+    let listen_url = env::var("LISTEN_URL").expect("LISTEN_URL must be set");
+
     HttpServer::new(|| {
         App::new()
             // enable logger
@@ -212,8 +226,7 @@ async fn main() -> std::io::Result<()> {
             // default to files in ./rts-server/static
             .service(fs::Files::new("/", "./rts-server/static/").index_file("index.html"))
     })
-    // start http server on 127.0.0.1:8080
-    .bind("127.0.0.1:8080")?
+    .bind(listen_url)?
     .run()
     .await
 }

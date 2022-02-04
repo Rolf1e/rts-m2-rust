@@ -1,0 +1,18 @@
+version: "3"
+
+services:
+  rts_m2_rust:
+    build: "."
+    environment:
+      DATABASE_URL: postgres://postgres:password@postgresql/postgres
+      # TODO ignored at the moment
+      LISTEN_URL: 0.0.0.0:8080
+    depends_on:
+      - postgresql
+    ports:
+      - 8080:8080
+
+  postgresql:
+    image: "postgres:14"
+    environment:
+      POSTGRES_PASSWORD: password
