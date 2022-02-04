@@ -19,10 +19,14 @@ use actix_web::{
     get, middleware, post, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 use actix_web_actors::ws;
+use argon2::{self, Config};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::r2d2::ConnectionManager;
 use r2d2::Pool;
+use rand::rngs::OsRng;
+use rand::RngCore;
+use serde::Deserialize;
 use serde::Deserialize;
 
 use rts_core::components::game::Game;
@@ -42,8 +46,9 @@ const AUTH_COOKIE_NAME: &str = "_token";
 
 pub type PostgresPool = Pool<ConnectionManager<PgConnection>>;
 
-pub struct AppState {
+pub struct AppState<'a> {
     pool: PostgresPool,
+    argon2_config: Config<'a>,
 }
 
 /// do websocket handshake and start `MyWebSocket` actor
@@ -134,10 +139,15 @@ pub fn create_user<'a>(
     username: &'a str,
     password: &'a str,
     email: &'a str,
+    config: &Config,
 ) -> User {
+    let mut salt = vec![0u8; 64];
+    OsRng.fill_bytes(&mut salt);
+
+   let hashed_password = argon2::hash_encoded(password.as_bytes(), &salt, config).unwrap();
     let new_user = NewUser {
         username,
-        password,
+        password: &hashed_password,
         email,
     };
 
@@ -148,13 +158,19 @@ pub fn create_user<'a>(
 }
 
 #[post("/register")]
-async fn register(info: web::Json<RegisterInfo>, state: web::Data<AppState>) -> impl Responder {
+async fn register(info: web::Json<RegisterInfo>, state: web::Data<AppState<'_>>) -> impl Responder {
     let conn = state.pool.get().expect("Could not connect to the database");
     println!(
         "Register request from {} with password {} and mail {}",
         info.username, info.password, info.email
     );
-    let user = create_user(&conn, &info.username, &info.password, &info.email);
+    let user = create_user(
+        &conn,
+        &info.username,
+        &info.password,
+        &info.email,
+        &state.argon2_config,
+    );
     println!("User registered with id {}", user.id);
     HttpResponse::Ok().body("Registered user")
 }
@@ -166,13 +182,26 @@ struct LoginInfo {
 }
 
 #[post("/login")]
-async fn login(info: web::Json<LoginInfo>) -> impl Responder {
-    // TODO
+async fn login(info: web::Json<LoginInfo>, state: web::Data<AppState<'_>>) -> impl Responder {
+    use self::schema::users::dsl::*;
+    let conn = state.pool.get().expect("Could not connect to the database");
+    let matching_users = users
+        .filter(username.eq(info.username.clone()))
+        .load::<User>(&conn)
+        .expect("Error loading users");
     println!(
         "Login request from {} with password {}",
         info.username, info.password
     );
-    HttpResponse::Ok().body("Login")
+    let matching_user = &matching_users[0];
+    println!("Found matching user {:?}", matching_user);
+    // TODO check password
+    let is_valid =
+        argon2::verify_encoded(&matching_user.password, info.password.as_bytes()).unwrap();
+    match is_valid {
+        true => HttpResponse::Ok().body("Logged in"), // TODO
+        false => HttpResponse::Ok().body("Invalid username or password"), //TODO
+    }
 }
 
 #[post("/logout")]
@@ -199,7 +228,7 @@ async fn submit_ai(info: web::Json<AiInfo>) -> impl (Responder) {
 }
 
 #[get("/leaderboard")]
-async fn leaderboard(state: web::Data<AppState>) -> impl Responder {
+async fn leaderboard(state: web::Data<AppState<'_>>) -> impl Responder {
     // TODO
     let conn = state.pool.get().expect("Could not connect to the database");
     let users = users::table
@@ -259,7 +288,10 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             // bind the database
-            .data(AppState { pool: pool.clone() })
+            .data(AppState {
+                pool: pool.clone(),
+                argon2_config: Config::default(),
+            })
             // enable logger
             .wrap(middleware::Logger::default())
             // login route
