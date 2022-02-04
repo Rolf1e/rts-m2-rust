@@ -10,7 +10,6 @@ pub mod models;
 pub mod schema;
 
 use std::time::{Duration, Instant};
-use std::env;
 
 use actix::prelude::*;
 use actix_files as fs;
@@ -18,14 +17,26 @@ use actix_web::{
     get, middleware, post, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 use actix_web_actors::ws;
+use diesel::pg::PgConnection;
+use diesel::prelude::*;
 use serde::Deserialize;
 
-use self::models::{NewAi, NewUser, User, AI};
+use diesel::r2d2::ConnectionManager;
+use r2d2::Pool;
+
+use self::models::User;
+use self::schema::users;
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 /// How long before lack of client response causes a timeout
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
+
+pub type PostgresPool = Pool<ConnectionManager<PgConnection>>;
+
+pub struct AppState {
+    pool: PostgresPool,
+}
 
 /// do websocket handshake and start `MyWebSocket` actor
 async fn ws_index(r: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
@@ -156,8 +167,13 @@ async fn submit_ai(info: web::Json<AiInfo>) -> impl (Responder) {
 }
 
 #[get("/leaderboard")]
-async fn leaderboard() -> impl Responder {
+async fn leaderboard(state: web::Data<AppState>) -> impl Responder {
     // TODO
+    let conn = state.pool.get().expect("Could not connect to the database");
+    let users = users::table
+        .load::<User>(&conn)
+        .expect("Error loading users");
+    dbg!(users);
     HttpResponse::Ok().body("Leaderboard")
 }
 
@@ -166,10 +182,18 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
     env_logger::init();
 
-    let listen_url = env::var("LISTEN_URL").expect("LISTEN_URL must be set");
+    let database_url = dotenv::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    HttpServer::new(|| {
+    let listen_url = dotenv::var("LISTEN_URL").expect("LISTEN_URL must be set");
+
+    let pool = r2d2::Pool::builder()
+        .build(ConnectionManager::<PgConnection>::new(database_url))
+        .expect("Could not build connection pool");
+
+    HttpServer::new(move || {
         App::new()
+            // bind the database
+            .data(AppState { pool: pool.clone() })
             // enable logger
             .wrap(middleware::Logger::default())
             // login route
