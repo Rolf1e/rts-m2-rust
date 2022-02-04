@@ -99,27 +99,20 @@ impl Unit {
         }
     }
 
+    /// if to_update_with is negative Unit is damaged
+    /// or Unit is healed
     fn update_attribut_under_max(
         attribut: i16,
         max_attribut: i16,
         to_update_with: i16,
     ) -> Option<i16> {
-        // Unit is damaged
-        if to_update_with.is_negative() {
-            if let Some(res) = attribut.checked_add(to_update_with) {
-                return Some(res);
-            } else {
-                return None;
-            }
-        }
-
-        // Unit is healed
         if let Some(res) = attribut.checked_add(to_update_with) {
-            if res >= max_attribut {
-                return Some(max_attribut);
+            let to_return = if res >= max_attribut {
+                max_attribut
             } else {
-                return Some(res);
-            }
+                res
+            };
+            Some(to_return)
         } else {
             None
         }
