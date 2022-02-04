@@ -24,3 +24,6 @@ time = "0.2"
 # Password hashing and encryption
 rust-argon2 = "1.0"
 rand = { version = "0.8.4", features = ["getrandom", ]}
+
+# Token conversion
+base64 = "0.9.3"
