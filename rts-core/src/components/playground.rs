@@ -6,6 +6,9 @@ use crate::entity::player::Player;
 use crate::entity::unit::{Unit, UnitType};
 use crate::exceptions::RtsException;
 
+type InnerPlayer = Rc<RefCell<Player>>;
+pub type Players = (InnerPlayer, InnerPlayer);
+
 pub enum PlayerIndex {
     PlayerOne,
     PlayerTwo,
@@ -13,8 +16,8 @@ pub enum PlayerIndex {
 
 pub struct PlayGround {
     barrack: Building,
-    p1: Rc<RefCell<Player>>,
-    p2: Rc<RefCell<Player>>,
+    p1: InnerPlayer,
+    p2: InnerPlayer,
 }
 
 pub enum Action {
@@ -28,26 +31,27 @@ pub enum MoveState {
 impl PlayGround {
     pub fn new(player_1: Player, player_2: Player) -> Self {
         PlayGround {
-            barrack: Building::new(),
+            barrack: Building::default(),
             p1: Rc::new(RefCell::new(player_1)),
             p2: Rc::new(RefCell::new(player_2)),
         }
     }
 
+    /// Plays a turn with player execute given action
     pub fn play_with(
         &self,
         index: PlayerIndex,
         action: Action,
     ) -> Result<Vec<MoveState>, RtsException> {
         match index {
-            PlayerIndex::PlayerOne => self.play_action(Rc::clone(&self.p1), action),
-            PlayerIndex::PlayerTwo => self.play_action(Rc::clone(&self.p2), action),
+            PlayerIndex::PlayerOne => self.execute_action(Rc::clone(&self.p1), action),
+            PlayerIndex::PlayerTwo => self.execute_action(Rc::clone(&self.p2), action),
         }
     }
 
-    fn play_action(
+    fn execute_action(
         &self,
-        player: Rc<RefCell<Player>>,
+        player: InnerPlayer,
         action: Action,
     ) -> Result<Vec<MoveState>, RtsException> {
         match action {
@@ -55,14 +59,14 @@ impl PlayGround {
         }
     }
 
-    pub fn get_players(&self) -> (Rc<RefCell<Player>>, Rc<RefCell<Player>>) {
+    pub fn get_players(&self) -> Players {
         (Rc::clone(&self.p1), Rc::clone(&self.p2))
     }
 
     fn buy_unit(
         &self,
         unit_type: UnitType,
-        player: Rc<RefCell<Player>>,
+        player: InnerPlayer,
     ) -> Result<Vec<MoveState>, RtsException> {
         let mut player = player.borrow_mut();
         let unit = self.barrack.buy_unit(unit_type, &mut player)?;

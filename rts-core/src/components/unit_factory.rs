@@ -2,8 +2,13 @@ use crate::entity::unit::{Unit, UnitType};
 
 pub struct UnitFactory {}
 
+impl Default for UnitFactory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl UnitFactory {
-    pub fn new() -> Self {
+    fn new() -> Self {
         UnitFactory {}
     }
 

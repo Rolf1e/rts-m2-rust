@@ -7,10 +7,16 @@ pub struct Building {
     unit_factory: UnitFactory,
 }
 
+impl Default for Building {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Building {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Building {
-            unit_factory: UnitFactory::new(),
+            unit_factory: UnitFactory::default(),
         }
     }
 
@@ -40,7 +46,7 @@ mod test_building {
     pub fn should_buy_unit() {
         let mut player = Player::new(String::from("Tigran"));
         player.update_money(100);
-        let barrack = Building::new();
+        let barrack = Building::default();
 
         if let Ok(unit) = barrack.buy_unit(UnitType::Classic, &mut player) {
             assert_eq!(&20, unit.get_health());
