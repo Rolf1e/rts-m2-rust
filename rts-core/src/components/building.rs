@@ -40,7 +40,6 @@ mod test_building {
     pub fn should_buy_unit() {
         let mut player = Player::new(String::from("Tigran"));
         player.update_money(100);
-
         let barrack = Building::new();
 
         if let Ok(unit) = barrack.buy_unit(UnitType::Classic, &mut player) {
