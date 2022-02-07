@@ -61,7 +61,7 @@ impl Unit {
             Ok(())
         } else {
             Err(RtsException::GeneralException(String::from(
-                "Failed to update mana",
+                "Failed to update health",
             )))
         }
     }
