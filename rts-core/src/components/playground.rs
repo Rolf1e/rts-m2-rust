@@ -36,7 +36,7 @@ impl PlayGround {
 
     /// Plays a turn with player execute given action
     pub fn play_with(&self, index: usize, action: Action) -> Result<Vec<MoveState>, RtsException> {
-        if index > self.players.len() {
+        if index >= self.players.len() {
             return Err(RtsException::ExecuteActionException(format!(
                 "Failed to find player {} when executing action {:?}",
                 index, action
@@ -104,5 +104,14 @@ mod tests_play_ground {
         } else {
             assert!(false);
         }
+    }
+
+    #[test]
+    pub fn should_not_find_user() {
+        let tigran = Player::new("Tigran".to_string());
+        let play_ground = PlayGround::new(vec![tigran]);
+
+        let res = play_ground.play_with(1, Action::BuyUnit(UnitType::Classic));
+        assert!(res.is_err());
     }
 }
