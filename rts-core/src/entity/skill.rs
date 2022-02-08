@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct Skill {
     mana_cost: i8,
     damage: i16,
