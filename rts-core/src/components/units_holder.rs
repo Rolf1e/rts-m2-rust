@@ -33,16 +33,14 @@ impl UnitsHolder {
         coordinate: Coordinate,
         unit: Unit,
     ) -> Result<(), RtsException> {
-        let inner = (coordinate, unit);
-
+        let unit_to_add = (coordinate, unit);
         let to_be_inserted =
             if let Some(olds) = self.units_coordinate_by_players.remove(&player_name) {
-                let mut news = Vec::with_capacity(olds.len() + 1);
-                news.push(inner);
-                dbg!(&news);
+                let mut news = Vec::from_iter(olds);
+                news.push(unit_to_add);
                 news
             } else {
-                vec![inner]
+                vec![unit_to_add]
             };
 
         if let None = self
@@ -83,7 +81,7 @@ pub mod tests_units_holder {
             assert!(false);
         }
         if let Some(units) = units_holder.get_coordinates(String::from("tigran")) {
-            if units.len() != 0 {
+            if units.len() != 1 {
                 assert!(false);
             }
 
