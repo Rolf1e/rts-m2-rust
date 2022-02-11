@@ -208,6 +208,7 @@ async fn login(info: web::Json<LoginInfo>, state: web::Data<AppState<'_>>) -> im
                 .write()
                 .expect("Couldn't access the token storage")
                 .insert(token.clone(), matching_user.id);
+            println!("Saved token {} for user id {}.", &token, matching_user.id);
             HttpResponse::Ok()
                 .cookie(
                     Cookie::build(AUTH_COOKIE_NAME, token)
@@ -237,10 +238,60 @@ struct AiInfo {
     ai: String,
 }
 
+fn get_current_user(req: &HttpRequest, state: &web::Data<AppState<'_>>) -> Option<Box<User>> {
+    use self::schema::users::dsl::*;
+    use actix_web::HttpMessage;
+    println!("Fetching the user from the cookies");
+    // Read the authentication cookie
+    let auth_token = match req.cookie(AUTH_COOKIE_NAME) {
+        None => {
+            println!("Could not find the cookie in the headers");
+            return None;
+        }
+        Some(cookie) => cookie.value().to_string(),
+    };
+    println!("Trying to find the user id for token {}", &auth_token);
+    // Try to find the token in the app state
+    let user_id = match state
+        .tokens
+        .read()
+        .expect("Couldn't access the token storage")
+        .get(&auth_token)
+    {
+        None => {
+            println!("Could not find the token in the storage");
+            return None;
+        }
+        Some(uid) => *uid,
+    };
+    // Find the user in the database
+    let conn = state.pool.get().expect("Could not connect to the database");
+    let matching_users = users
+        .filter(id.eq(user_id))
+        .load::<User>(&conn)
+        .expect("Error loading users");
+    if matching_users.is_empty() {
+        panic!("Token is valid but the user was not found in the database!")
+    } else if matching_users.len() > 1 {
+        panic!("Found multiple users with the given id!")
+    } else {
+        Some(Box::new(matching_users[0].clone()))
+    }
+}
+
 #[post("/submit_ai")]
-async fn submit_ai(info: web::Json<AiInfo>) -> impl (Responder) {
-    // TODO
-    println!("Ai submit request with ai {}", info.ai);
+async fn submit_ai(
+    req: HttpRequest,
+    state: web::Data<AppState<'_>>,
+    info: web::Json<AiInfo>,
+) -> impl (Responder) {
+    let user = match get_current_user(&req, &state) {
+        None => return HttpResponse::BadRequest().body("Not currently logged in"),
+        Some(user) => user,
+    };
+    println!("Found an user matching the cookies");
+    // TODO submit to pastebin/gist if the user's settings allow it
+    println!("Ai submit request with ai {} for user {:?}", info.ai, &user);
     HttpResponse::Ok().body("Submit AI")
 }
 
@@ -257,6 +308,7 @@ async fn leaderboard(state: web::Data<AppState<'_>>) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    println!("Starting the rts web server");
     std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
     env_logger::init();
 
