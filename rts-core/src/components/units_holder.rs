@@ -1,8 +1,6 @@
 use crate::entity::unit::Unit;
 use crate::exceptions::RtsException;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 type Coordinate = (usize, usize);
 type UnitsStore = HashMap<String, Vec<InnerUnits>>;
@@ -11,7 +9,7 @@ type InnerUnits = (Coordinate, Unit);
 
 /// Holds units positions by players
 pub struct UnitsHolder {
-    units_coordinate_by_players: UnitsStore,
+    units_coordinates: UnitsStore,
 }
 
 impl Default for UnitsHolder {
@@ -23,7 +21,7 @@ impl Default for UnitsHolder {
 impl UnitsHolder {
     pub fn new() -> Self {
         UnitsHolder {
-            units_coordinate_by_players: HashMap::new(),
+            units_coordinates: HashMap::new(),
         }
     }
 
@@ -34,19 +32,15 @@ impl UnitsHolder {
         unit: Unit,
     ) -> Result<(), RtsException> {
         let unit_to_add = (coordinate, unit);
-        let to_be_inserted =
-            if let Some(olds) = self.units_coordinate_by_players.remove(&player_name) {
-                let mut news = Vec::from_iter(olds);
-                news.push(unit_to_add);
-                news
-            } else {
-                vec![unit_to_add]
-            };
+        let to_be_inserted = if let Some(olds) = self.units_coordinates.remove(&player_name) {
+            let mut news = Vec::from_iter(olds);
+            news.push(unit_to_add);
+            news
+        } else {
+            vec![unit_to_add]
+        };
 
-        if let None = self
-            .units_coordinate_by_players
-            .insert(player_name, to_be_inserted)
-        {
+        if let None = self.units_coordinates.insert(player_name, to_be_inserted) {
             Ok(())
         } else {
             Err(RtsException::StoreUnitCoordinatesException(String::from(
@@ -56,7 +50,7 @@ impl UnitsHolder {
     }
 
     pub fn get_coordinates(&self, player_name: String) -> Option<&Vec<InnerUnits>> {
-        self.units_coordinate_by_players.get(&player_name)
+        self.units_coordinates.get(&player_name)
     }
 }
 

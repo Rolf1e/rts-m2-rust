@@ -8,7 +8,7 @@ use crate::exceptions::RtsException;
 
 type InnerPlayer = Rc<RefCell<Player>>;
 
-pub struct PlayGround {
+pub struct UnitsShop {
     barrack: Building,
     players: Vec<InnerPlayer>,
 }
@@ -22,13 +22,13 @@ pub enum MoveState {
     BuyUnit(Unit),
 }
 
-impl PlayGround {
+impl UnitsShop {
     pub fn new(players: Vec<Player>) -> Self {
         let players: Vec<InnerPlayer> = players
             .into_iter()
             .map(|player| Rc::new(RefCell::new(player)))
             .collect();
-        PlayGround {
+        UnitsShop {
             barrack: Building::default(),
             players,
         }
@@ -81,7 +81,7 @@ impl PlayGround {
 #[cfg(test)]
 mod tests_play_ground {
 
-    use super::{Action, MoveState, PlayGround};
+    use super::{Action, MoveState, UnitsShop};
     use crate::entity::player::Player;
     use crate::entity::unit::UnitType;
     use std::cell::RefCell;
@@ -93,7 +93,7 @@ mod tests_play_ground {
 
         let emma = Player::new("Emma".to_string());
 
-        let play_ground = PlayGround::new(vec![tigran, emma]);
+        let play_ground = UnitsShop::new(vec![tigran, emma]);
 
         if let Ok(moves) = play_ground.play_with(0, Action::BuyUnit(UnitType::Classic)) {
             let MoveState::BuyUnit(unit) = &moves[0];
@@ -109,7 +109,7 @@ mod tests_play_ground {
     #[test]
     pub fn should_not_find_user() {
         let tigran = Player::new("Tigran".to_string());
-        let play_ground = PlayGround::new(vec![tigran]);
+        let play_ground = UnitsShop::new(vec![tigran]);
 
         let res = play_ground.play_with(1, Action::BuyUnit(UnitType::Classic));
         assert!(res.is_err());

@@ -8,6 +8,7 @@ pub enum RtsException {
     BuyUnitException(UnitType, String),
     ExecuteActionException(String),
     StoreUnitCoordinatesException(String),
+    UpdatePlayGroundException(String),
 }
 
 impl Display for RtsException {
@@ -15,6 +16,7 @@ impl Display for RtsException {
         match &self {
             RtsException::GeneralException(m)
             | RtsException::ExecuteActionException(m)
+            | RtsException::UpdatePlayGroundException(m)
             | RtsException::StoreUnitCoordinatesException(m) => {
                 write!(f, "Rts Game: {}", m)
             }

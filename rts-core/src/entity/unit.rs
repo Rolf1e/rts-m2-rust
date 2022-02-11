@@ -33,6 +33,12 @@ impl UnitType {
     }
 }
 
+impl Display for Unit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "h:{} m:{} a:{} r:{}", self.health, self.mana, self.armor, self.range)
+    }
+}
+
 impl Unit {
     /// Create unit and initialize her stats at the top
     pub fn from(
