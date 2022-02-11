@@ -1,6 +1,6 @@
 use crate::schema::{ais, users};
 
-#[derive(Debug, Queryable)]
+#[derive(Debug, Queryable, Clone)]
 pub struct User {
     pub id: i32,
     pub username: String,
