@@ -24,3 +24,7 @@ rand = { version = "0.8.4", features = ["getrandom", ]}
 
 # Token conversion
 base64 = "0.9.3"
+
+# AI fetching
+reqwest = "0.10"
+#tokio = { version = "0.2", features = ["full"] }

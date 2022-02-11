@@ -25,4 +25,9 @@ COPY . .
 RUN cargo build --release --bin rts-server
 RUN cargo install --path rts-server
 
-CMD cd rts-server && diesel migration run && cd .. && rts-server
+CMD echo "=> Running migrations" && \
+    cd rts-server && \
+    diesel migration run && \
+    cd .. && \
+    echo "=> Starting server" && \
+    rts-server

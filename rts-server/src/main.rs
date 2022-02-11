@@ -30,8 +30,8 @@ use serde::Deserialize;
 use diesel::r2d2::ConnectionManager;
 use r2d2::Pool;
 
-use self::models::{NewUser, User};
-use self::schema::users;
+use self::models::*;
+use self::schema::*;
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -233,11 +233,6 @@ async fn logout() -> impl (Responder) {
         .body("Logged out")
 }
 
-#[derive(Deserialize)]
-struct AiInfo {
-    ai: String,
-}
-
 fn get_current_user(req: &HttpRequest, state: &web::Data<AppState<'_>>) -> Option<Box<User>> {
     use self::schema::users::dsl::*;
     use actix_web::HttpMessage;
@@ -279,20 +274,82 @@ fn get_current_user(req: &HttpRequest, state: &web::Data<AppState<'_>>) -> Optio
     }
 }
 
+#[derive(Deserialize, Debug)]
+enum AiInfo {
+    Ai(String),
+    PastebinKey(String),
+    Gist { username: String, hash: String },
+}
+
+async fn fetch_ai_from_pastebin(paste_key: &str) -> Option<String> {
+    reqwest::get(&format!(
+        "https://pastebin.com/raw/{pastebin_key}",
+        pastebin_key = paste_key
+    ))
+    .await
+    .ok()?
+    .text()
+    .await
+    .ok()
+}
+
+async fn fetch_ai_from_gist(username: &str, hash: &str) -> Option<String> {
+    reqwest::get(&format!(
+        "https://gist.githubusercontent.com/{username}/{hash}/raw",
+        username = username,
+        hash = hash
+    ))
+    .await
+    .ok()?
+    .text()
+    .await
+    .ok()
+}
+
 #[post("/submit_ai")]
 async fn submit_ai(
     req: HttpRequest,
     state: web::Data<AppState<'_>>,
     info: web::Json<AiInfo>,
 ) -> impl (Responder) {
+    // Authenticate the user
     let user = match get_current_user(&req, &state) {
         None => return HttpResponse::BadRequest().body("Not currently logged in"),
         Some(user) => user,
     };
     println!("Found an user matching the cookies");
-    // TODO submit to pastebin/gist if the user's settings allow it
-    println!("Ai submit request with ai {} for user {:?}", info.ai, &user);
-    HttpResponse::Ok().body("Submit AI")
+
+    // Save the AI in the database
+    println!("Ai submit request with ai {:?} for user {:?}", &info, &user);
+    let code = match info.0 {
+        AiInfo::Ai(c) => c,
+        AiInfo::PastebinKey(key) => match fetch_ai_from_pastebin(&key).await {
+            None => {
+                return HttpResponse::ExpectationFailed()
+                    .body("Could not fetch code from pastebin.")
+            }
+            Some(c) => c,
+        },
+        AiInfo::Gist { username, hash } => match fetch_ai_from_gist(&username, &hash).await {
+            None => {
+                return HttpResponse::ExpectationFailed().body("Could not fetch code from gist.")
+            }
+            Some(c) => c,
+        },
+    };
+
+    let conn = state.pool.get().expect("Could not connect to the database");
+    let new_ai = NewAi {
+        owner: user.id,
+        code: &code,
+    };
+    let ai: AI = diesel::insert_into(ais::table)
+        .values(&new_ai)
+        .get_result(&conn)
+        .expect("Error creating ai");
+    println!("AI created with id {}", ai.id);
+
+    HttpResponse::Ok().body("Submitted AI")
 }
 
 #[get("/leaderboard")]
@@ -309,7 +366,7 @@ async fn leaderboard(state: web::Data<AppState<'_>>) -> impl Responder {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     println!("Starting the rts web server");
-    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
+    //std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
     env_logger::init();
 
     let database_url = dotenv::var("DATABASE_URL").expect("DATABASE_URL must be set");
