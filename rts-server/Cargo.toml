@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 rts-core = { path = "../rts-core" }
+futures = "0.3"
+tokio = { version = "1.16.1", features = ["full"] } # @TODO remove

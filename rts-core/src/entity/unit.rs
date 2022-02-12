@@ -5,7 +5,7 @@ use crate::exceptions::RtsException;
 
 const CLASSIC_UNIT_COST: i16 = 20;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Unit {
     max_health: i16,
     max_mana: i16,

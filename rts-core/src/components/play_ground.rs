@@ -1,36 +1,50 @@
 use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
-use crate::exceptions::RtsException;
-
 pub type Cell<T> = Arc<Mutex<UnitHolder<T>>>;
+pub type Coordinate = (f32, f32);
+
+pub type Identifier = i16;
+
+pub trait HasIdentifier {
+    fn get_identifier(&self) -> Identifier;
+    fn is(&self, identifier: &Identifier) -> bool;
+}
 
 pub struct PlayGround<T>
 where
-    T: Display,
+    T: Display + HasIdentifier,
 {
-    cells: Vec<Vec<Cell<T>>>,
+    cells: Vec<Cell<T>>,
 }
 
 pub struct UnitHolder<T>
 where
-    T: Display,
+    T: Display + HasIdentifier,
 {
     t: Option<T>,
+    coordinate: Coordinate,
 }
 
-impl<T> Default for UnitHolder<T>
+impl<T> UnitHolder<T>
 where
-    T: Display,
+    T: Display + HasIdentifier,
 {
-    fn default() -> Self {
-        UnitHolder { t: None }
+    fn new(coordinate: Coordinate) -> Self {
+        UnitHolder {
+            t: None,
+            coordinate,
+        }
+    }
+
+    fn is(&self, identifier: &Identifier) -> bool {
+        todo!()
     }
 }
 
 impl<T> UnitHolder<T>
 where
-    T: Display,
+    T: Display + HasIdentifier,
 {
     pub fn update_with(&mut self, content: T) {
         self.t = Some(content);
@@ -39,49 +53,29 @@ where
 
 impl<T> PlayGround<T>
 where
-    T: Display,
+    T: Display + HasIdentifier,
 {
     /// Initialize the map with given capacities
     /// All vectors are empty
     pub fn new(number_of_columns: usize, number_of_rows: usize) -> Self {
-        let mut cells = Vec::with_capacity(number_of_rows);
-        for _ in 0..number_of_rows {
-            cells.push(vec![
-                Arc::new(Mutex::new(UnitHolder::default()));
-                number_of_columns
-            ]);
-        }
-        PlayGround { cells }
+        todo!()
     }
 
-    pub fn update_at(&mut self, (x, y): (usize, usize), content: T) -> Result<(), RtsException> {
-        let cell = &self.cells[x][y];
-        let cell = Arc::clone(&cell);
-        let mut cell = cell.lock().map_err(|_| {
-            RtsException::UpdatePlayGroundException("Failed to update map".to_string())
-        })?;
-        println!("{}", &cell);
-        cell.update_with(content);
-        Ok(())
-    }
-
-    pub fn get_cells(&self) -> &Vec<Vec<Cell<T>>> {
+    pub fn get_cells(&self) -> &[Cell<T>] {
         &self.cells
     }
 }
 
 impl<T> Display for PlayGround<T>
 where
-    T: Display,
+    T: Display + HasIdentifier,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for row in &self.cells {
+        for cell in &self.cells {
             write!(f, "|")?;
-            for cell in row {
-                let cell = Arc::clone(cell);
-                let cell = cell.lock().map_err(|_| std::fmt::Error)?;
-                write!(f, " {} |", *cell)?;
-            }
+            let cell = Arc::clone(cell);
+            let cell = cell.lock().map_err(|_| std::fmt::Error)?;
+            write!(f, " {} |", *cell)?;
             write!(f, "\n")?;
         }
         Ok(())
@@ -90,7 +84,7 @@ where
 
 impl<T> Display for UnitHolder<T>
 where
-    T: Display,
+    T: Display + HasIdentifier,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.t {

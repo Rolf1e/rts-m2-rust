@@ -9,11 +9,19 @@ pub enum RtsException {
     ExecuteActionException(String),
     StoreUnitCoordinatesException(String),
     UpdatePlayGroundException(String),
+    UpdatePlayerException(String), // action
 }
 
 impl Display for RtsException {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
+            RtsException::UpdatePlayerException(action) => {
+                write!(
+                    f,
+                    "Rts Game: Failed to execute action {} with player ",
+                    action
+                )
+            }
             RtsException::GeneralException(m)
             | RtsException::ExecuteActionException(m)
             | RtsException::UpdatePlayGroundException(m)

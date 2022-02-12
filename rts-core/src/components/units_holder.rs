@@ -40,7 +40,8 @@ impl UnitsHolder {
             vec![unit_to_add]
         };
 
-        if let None = self.units_coordinates.insert(player_name, to_be_inserted) {
+        let res = self.units_coordinates.insert(player_name, to_be_inserted);
+        if res.is_none() {
             Ok(())
         } else {
             Err(RtsException::StoreUnitCoordinatesException(String::from(

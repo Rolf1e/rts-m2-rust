@@ -2,11 +2,11 @@ use std::fmt::Display;
 
 use crate::exceptions::RtsException;
 
-use super::play_ground::PlayGround;
+use super::play_ground::{HasIdentifier, PlayGround};
 
 pub trait Displayer<T>
 where
-    T: Display,
+    T: Display + HasIdentifier,
 {
     fn display(play_ground: &PlayGround<T>) -> Result<(), RtsException>;
 }
@@ -15,7 +15,7 @@ pub struct ConsoleDisplayer;
 
 impl<T> Displayer<T> for ConsoleDisplayer
 where
-    T: Display,
+    T: Display + HasIdentifier,
 {
     fn display(play_ground: &PlayGround<T>) -> Result<(), RtsException> {
         println!("{}", play_ground); 

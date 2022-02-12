@@ -1,17 +1,34 @@
-use rts_core::components::displayer::{ConsoleDisplayer, Displayer};
-use rts_core::components::play_ground::PlayGround;
-use rts_core::components::unit_factory::UnitFactory;
-use rts_core::entity::unit::{Unit, UnitType};
-use rts_core::exceptions::RtsException;
+use rts_core::components::game::Game;
+use rts_core::entity::game_actions::Action;
+use rts_core::entity::player::Player;
 
-fn main() -> Result<(), RtsException> {
-    let mut play_ground: PlayGround<Unit> = PlayGround::new(10, 10);
-    let unit_factory = UnitFactory::default();
-    ConsoleDisplayer::display(&play_ground)?;
+async fn start(game: &Game) {
+    println!("Launch game");
+    match game.start().await {
+        Ok(_) => println!("GS"),
+        Err(e) => println!("{}", e),
+    }
+}
 
-    let unit = unit_factory.build_unit(UnitType::Classic);
-    play_ground.update_at((1, 1), unit)?;
-    ConsoleDisplayer::display(&play_ground)?;
+async fn play(game: &Game) {
+    println!("Play a turn ");
+    match game.play_with_async(0, Action::EndGame).await {
+        Ok(_) => println!("Play"),
+        Err(e) => println!("{}", e),
+    }
+}
 
-    Ok(())
+#[tokio::main]
+async fn main() {
+    let p1 = Player::new("Tigran".to_string());
+    let p2 = Player::new("Emma".to_string());
+    let game = Game::new(vec![p1, p2]);
+
+    let t1 = start(&game);
+    let t2 = play(&game);
+
+    tokio::select! {
+        _ = t2 => println!("Game is over"),
+        _ = t1 => println!("Game started"),
+    };
 }
