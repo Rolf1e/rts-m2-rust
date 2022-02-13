@@ -13,13 +13,14 @@ use crate::exceptions::RtsException;
 
 type InnerPlayer = Rc<RefCell<Player>>; // May evolve to Arc<Mutex<>>
 type InnerMoveState = Arc<Mutex<Vec<MoveState>>>;
+type InnerUnitsPlayGround = Arc<Mutex<PlayGround<Unit>>>;
 
 // This is an event loop
 pub struct Game {
     barrack: Barrack,
     players: Vec<InnerPlayer>,
     moves: InnerMoveState,
-    map: Arc<Mutex<PlayGround<Unit>>>,
+    map: InnerUnitsPlayGround,
 }
 
 impl Game {
@@ -32,7 +33,7 @@ impl Game {
             barrack: Barrack::default(),
             players,
             moves: Arc::new(Mutex::new(Vec::new())),
-            map: Arc::new(Mutex::new(PlayGround::new())),
+            map: Arc::new(Mutex::new(PlayGround::default())),
         }
     }
 
@@ -98,19 +99,16 @@ impl Game {
             )
         })?;
         for m in moves.iter() {
-            match m {
-                MoveState::BuyUnit(unit) => {
-                    let unit_clone = unit.clone(); // Clone here should be ok, it will be the stored item
-                    let play_ground_ptr = Arc::clone(&self.map);
-                    let mut play_ground_mutex = play_ground_ptr.lock().map_err(|_| {
-                        RtsException::UpdatePlayGroundException(
-                            "Failed to acquire mutex for playground when updating this one"
-                                .to_string(),
-                        )
-                    })?;
-                    play_ground_mutex.update(unit_clone);
-                }
-                _ => (),
+            if let MoveState::BuyUnit(unit) = m {
+                let unit_clone = unit.clone(); // Clone here should be ok, it will be the stored item
+                let play_ground_ptr = Arc::clone(&self.map);
+                let mut play_ground_mutex = play_ground_ptr.lock().map_err(|_| {
+                    RtsException::UpdatePlayGroundException(
+                        "Failed to acquire mutex for playground when updating this one"
+                            .to_string(),
+                    )
+                })?;
+                play_ground_mutex.update(unit_clone);
             }
         }
         Ok(())

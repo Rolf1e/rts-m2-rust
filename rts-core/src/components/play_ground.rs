@@ -108,6 +108,15 @@ where
     }
 }
 
+impl<T> Default for PlayGround<T>
+where
+    T: Display + HasIdentifier,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> PlayGround<T>
 where
     T: Display + HasIdentifier,
