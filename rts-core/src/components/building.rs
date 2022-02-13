@@ -40,7 +40,7 @@ impl Barrack {
 
     pub fn buy_unit(&self, unit_type: UnitType, player: &mut Player) -> Result<Unit, RtsException> {
         if self.retrieve_money(&unit_type, player) {
-            Ok(self.unit_factory.build_unit(unit_type))
+            Ok(self.unit_factory.build_unit(unit_type))?
         } else {
             Err(RtsException::BuyUnitException(
                 unit_type,

@@ -1,6 +1,7 @@
 use rts_core::components::game::Game;
 use rts_core::entity::game_actions::Action;
 use rts_core::entity::player::Player;
+use rts_core::entity::unit::UnitType;
 
 async fn start(game: &Game) {
     println!("Launch game");
@@ -10,12 +11,15 @@ async fn start(game: &Game) {
     }
 }
 
-async fn play(game: &Game) {
-    println!("Play a turn ");
-    match game.play_with_async(0, Action::EndGame).await {
-        Ok(_) => println!("Play"),
+async fn play(game: &Game, action: Action) {
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+    let action_name = action.get_name();
+    match game.play_with_async(0, action).await {
+        Ok(_) => println!("Play {}", action_name),
         Err(e) => println!("{}", e),
     }
+
+    game.console_display().unwrap();
 }
 
 #[tokio::main]
@@ -24,11 +28,13 @@ async fn main() {
     let p2 = Player::new("Emma".to_string());
     let game = Game::new(vec![p1, p2]);
 
-    let t1 = start(&game);
-    let t2 = play(&game);
+    game.console_display().unwrap();
 
+    let t1 = start(&game);
+
+    let turn = play(&game, Action::BuyUnit(UnitType::Classic)).await;
     tokio::select! {
-        _ = t2 => println!("Game is over"),
         _ = t1 => println!("Game started"),
     };
+
 }

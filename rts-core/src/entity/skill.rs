@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Skill {
     mana_cost: i8,
     damage: i16,

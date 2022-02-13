@@ -3,13 +3,13 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use tokio::time;
 
-use crate::components::building::Barrack;
+use crate::components::building::{Bank, Barrack};
+use crate::components::displayer::{ConsoleDisplayer, Displayer};
+use crate::components::play_ground::{Coordinate, Identifier, PlayGround, PlayGroundObserver};
 use crate::entity::game_actions::{Action, MoveState};
 use crate::entity::player::Player;
-use crate::entity::unit::UnitType;
+use crate::entity::unit::{Unit, UnitType};
 use crate::exceptions::RtsException;
-
-use super::building::Bank;
 
 type InnerPlayer = Rc<RefCell<Player>>; // May evolve to Arc<Mutex<>>
 type InnerMoveState = Arc<Mutex<Vec<MoveState>>>;
@@ -19,6 +19,7 @@ pub struct Game {
     barrack: Barrack,
     players: Vec<InnerPlayer>,
     moves: InnerMoveState,
+    map: Arc<Mutex<PlayGround<Unit>>>,
 }
 
 impl Game {
@@ -31,6 +32,7 @@ impl Game {
             barrack: Barrack::default(),
             players,
             moves: Arc::new(Mutex::new(Vec::new())),
+            map: Arc::new(Mutex::new(PlayGround::new())),
         }
     }
 
@@ -38,10 +40,20 @@ impl Game {
         &self.players
     }
 
+    pub fn console_display(&self) -> Result<(), RtsException> {
+        let play_ground_ptdr = Arc::clone(&self.map);
+        let play_ground_mutex = play_ground_ptdr
+            .lock()
+            .map_err(|_| RtsException::GeneralException("".to_string()))?;
+        ConsoleDisplayer::display(&play_ground_mutex)
+    }
+
+    /// Events loop to handle game state
     pub async fn start(&self) -> Result<(), RtsException> {
         loop {
             self.execute_recurring_actions()?;
-            if self.check_moves_state() {
+
+            if self.check_game_is_over()? {
                 break;
             }
             time::sleep(std::time::Duration::from_secs(10)).await;
@@ -54,6 +66,7 @@ impl Game {
         self.play_with(index, action)
     }
 
+    // Essentialy to ease tests
     pub fn play_with(&self, index: usize, action: Action) -> Result<(), RtsException> {
         if index >= self.players.len() {
             Err(RtsException::ExecuteActionException(format!(
@@ -63,9 +76,10 @@ impl Game {
             )))
         } else if let Some(player) = self.players.get(index) {
             println!("Executing action {}", action.get_name());
-            let result = self.execute_action(Rc::clone(player), action);
-            self.update_moves_state(result?);
-            self.check_moves_state();
+            let result = self.execute_action(Rc::clone(player), action)?;
+            self.update_moves_state(result)?;
+            self.check_game_is_over()?;
+            self.update_observer()?;
             Ok(())
         } else {
             Err(RtsException::ExecuteActionException(format!(
@@ -76,16 +90,53 @@ impl Game {
         }
     }
 
-    fn check_moves_state(&self) -> bool {
-        let mutex = Arc::clone(&self.moves);
-        let moves = mutex.lock().unwrap();
-        moves.contains(&MoveState::EndGame)
+    fn update_observer(&self) -> Result<(), RtsException> {
+        let moves_ptr = Arc::clone(&self.moves);
+        let moves = moves_ptr.lock().map_err(|_| {
+            RtsException::UpdatePlayGroundException(
+                "Failed to acquire mutex for moves when updating playground observers".to_string(),
+            )
+        })?;
+        for m in moves.iter() {
+            match m {
+                MoveState::BuyUnit(unit) => {
+                    let unit_clone = unit.clone(); // Clone here should be ok, it will be the stored item
+                    let play_ground_ptr = Arc::clone(&self.map);
+                    let mut play_ground_mutex = play_ground_ptr.lock().map_err(|_| {
+                        RtsException::UpdatePlayGroundException(
+                            "Failed to acquire mutex for playground when updating this one"
+                                .to_string(),
+                        )
+                    })?;
+                    play_ground_mutex.update(unit_clone);
+                }
+                _ => (),
+            }
+        }
+        Ok(())
     }
 
-    fn update_moves_state(&self, move_state: MoveState) {
-        let moves = Arc::clone(&self.moves);
-        let mut moves = moves.lock().unwrap();
-        moves.push(move_state);
+    fn check_game_is_over(&self) -> Result<bool, RtsException> {
+        let moves_ptr = Arc::clone(&self.moves);
+        let moves_mutex = moves_ptr.lock();
+        if let Ok(moves_mutex) = moves_mutex {
+            Ok(moves_mutex.contains(&MoveState::EndGame))
+        } else {
+            Err(RtsException::GeneralException(
+                "Failed to aquire mutex for moves when checking game is over".to_string(),
+            ))
+        }
+    }
+
+    fn update_moves_state(&self, move_state: MoveState) -> Result<(), RtsException> {
+        let moves_ptr = Arc::clone(&self.moves);
+        let mut moves_mutex = moves_ptr.lock().map_err(|_| {
+            RtsException::GeneralException(
+                "Failed to aquire mutex for moves when updating playground state".to_string(),
+            )
+        })?;
+        moves_mutex.push(move_state);
+        Ok(())
     }
 
     fn execute_recurring_actions(&self) -> Result<(), RtsException> {
@@ -105,7 +156,25 @@ impl Game {
             Action::BuyUnit(unit_type) => self.buy_unit(unit_type, player),
             Action::GiveMoneyBatch => self.give_money(player),
             Action::EndGame => Ok(MoveState::EndGame),
+            Action::MoveUnit(i, c) => self.move_unit(i, c),
         }
+    }
+
+    /// Available actions to be executed on the game
+    fn move_unit(
+        &self,
+        identifier: Identifier,
+        coordinate: Coordinate,
+    ) -> Result<MoveState, RtsException> {
+        let play_ground_ptr = Arc::clone(&self.map);
+        let play_ground_mutex = play_ground_ptr.lock().map_err(|_| {
+            RtsException::UpdatePlayGroundException(
+                "Failed to acquire playground mutex on moving unit".to_string(),
+            )
+        })?;
+        play_ground_mutex
+            .update_cell(identifier, coordinate)
+            .map(|_| MoveState::MoveUnit)
     }
 
     fn give_money(&self, player: InnerPlayer) -> Result<MoveState, RtsException> {
@@ -123,6 +192,7 @@ impl Game {
     ) -> Result<MoveState, RtsException> {
         let mut player = player.borrow_mut();
         let unit = self.barrack.buy_unit(unit_type, &mut player)?;
+        println!("Player: {}, Unit: {}", player, unit);
         Ok(MoveState::BuyUnit(unit))
     }
 }

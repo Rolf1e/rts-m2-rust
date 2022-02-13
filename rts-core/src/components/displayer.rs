@@ -18,7 +18,7 @@ where
     T: Display + HasIdentifier,
 {
     fn display(play_ground: &PlayGround<T>) -> Result<(), RtsException> {
-        println!("{}", play_ground); 
+        println!("=== PlayGround === \n{}\n ======", play_ground); 
         Ok(())
     }
 }
