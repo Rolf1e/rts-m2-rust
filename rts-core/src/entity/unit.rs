@@ -1,11 +1,13 @@
-use std::fmt::Display;
-
+use crate::components::play_ground::{HasIdentifier, Identifier};
 use crate::entity::skill::Skill;
 use crate::exceptions::RtsException;
+use std::fmt::Display;
 
 const CLASSIC_UNIT_COST: i16 = 20;
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Unit {
+    identifier: Identifier,
     max_health: i16,
     max_mana: i16,
     max_armor: i16,
@@ -24,6 +26,16 @@ pub enum UnitType {
     Classic,
 }
 
+impl HasIdentifier for Unit {
+    fn get_identifier(&self) -> Identifier {
+        self.identifier
+    }
+
+    fn is(&self, identifier: &Identifier) -> bool {
+        self.identifier.eq(identifier)
+    }
+}
+
 impl UnitType {
     pub fn get_cost(&self) -> i16 {
         match &self {
@@ -32,9 +44,20 @@ impl UnitType {
     }
 }
 
+impl Display for Unit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "h:{} m:{} a:{} r:{}",
+            self.health, self.mana, self.armor, self.range
+        )
+    }
+}
+
 impl Unit {
     /// Create unit and initialize her stats at the top
     pub fn from(
+        identifier: Identifier,
         max_health: i16,
         max_mana: i16,
         max_armor: i16,
@@ -42,6 +65,7 @@ impl Unit {
         skills: Vec<Skill>,
     ) -> Self {
         Unit {
+            identifier,
             max_health,
             max_mana,
             max_armor,
@@ -151,7 +175,7 @@ mod test_unit {
     // Damage cases
     #[test]
     pub fn should_lost_health() {
-        let mut unit = Unit::from(10, 0, 0, 0, Vec::new());
+        let mut unit = Unit::from(1, 10, 0, 0, 0, Vec::new());
         if let Err(e) = unit.update_health(-2) {
             println!("{}", e);
             assert!(false);
@@ -162,7 +186,7 @@ mod test_unit {
 
     #[test]
     pub fn should_use_mana() {
-        let mut unit = Unit::from(0, 10, 0, 0, Vec::new());
+        let mut unit = Unit::from(1, 0, 10, 0, 0, Vec::new());
         if let Err(e) = unit.update_mana(-2) {
             println!("{}", e);
             assert!(false);
@@ -173,7 +197,7 @@ mod test_unit {
 
     #[test]
     pub fn should_update_by_dropping_armor() {
-        let mut unit = Unit::from(0, 0, 10, 0, Vec::new());
+        let mut unit = Unit::from(1, 0, 0, 10, 0, Vec::new());
         if let Err(e) = unit.update_armor(-2) {
             println!("{}", e);
             assert!(false);
@@ -184,7 +208,7 @@ mod test_unit {
 
     #[test]
     pub fn should_update_by_dropping_range() {
-        let mut unit = Unit::from(0, 0, 0, 10, Vec::new());
+        let mut unit = Unit::from(1, 0, 0, 0, 10, Vec::new());
         if let Err(e) = unit.update_range(-2) {
             println!("{}", e);
             assert!(false);
@@ -196,7 +220,7 @@ mod test_unit {
     // Healing cases
     #[test]
     pub fn should_heal() {
-        let mut unit = Unit::from(10, 0, 0, 0, Vec::new());
+        let mut unit = Unit::from(1, 10, 0, 0, 0, Vec::new());
         unit.update_health(-3).unwrap();
         if let Err(e) = unit.update_health(2) {
             println!("{}", e);
@@ -208,7 +232,7 @@ mod test_unit {
 
     #[test]
     pub fn should_restore_mana() {
-        let mut unit = Unit::from(0, 10, 0, 0, Vec::new());
+        let mut unit = Unit::from(1, 0, 10, 0, 0, Vec::new());
         unit.update_mana(-3).unwrap();
         if let Err(e) = unit.update_mana(2) {
             println!("{}", e);
@@ -220,7 +244,7 @@ mod test_unit {
 
     #[test]
     pub fn should_gain_armor() {
-        let mut unit = Unit::from(0, 0, 10, 0, Vec::new());
+        let mut unit = Unit::from(1, 0, 0, 10, 0, Vec::new());
         unit.update_armor(-3).unwrap();
         if let Err(e) = unit.update_armor(2) {
             println!("{}", e);
@@ -232,7 +256,7 @@ mod test_unit {
 
     #[test]
     pub fn should_gain_range() {
-        let mut unit = Unit::from(0, 0, 0, 10, Vec::new());
+        let mut unit = Unit::from(1, 0, 0, 0, 10, Vec::new());
         unit.update_range(-3).unwrap();
         if let Err(e) = unit.update_range(2) {
             println!("{}", e);

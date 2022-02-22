@@ -3,26 +3,44 @@ use crate::entity::player::Player;
 use crate::entity::unit::{Unit, UnitType};
 use crate::exceptions::RtsException;
 
-pub struct Building {
+/// Produces units and get money from players
+pub struct Barrack {
     unit_factory: UnitFactory,
 }
 
-impl Default for Building {
+/// Produce money and give it to players
+pub struct Bank;
+
+impl Default for Barrack {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Building {
+const NEW_MONEY_BATCH: i32 = 100;
+
+impl Bank {
+    pub fn give_money(player: &mut Player) -> Result<(), RtsException> {
+        if let Some(_money) = player.update_money(NEW_MONEY_BATCH) {
+            Ok(())
+        } else {
+            Err(RtsException::UpdatePlayerException(
+                "Give new money batch".to_string(),
+            ))
+        }
+    }
+}
+
+impl Barrack {
     fn new() -> Self {
-        Building {
+        Barrack {
             unit_factory: UnitFactory::default(),
         }
     }
 
     pub fn buy_unit(&self, unit_type: UnitType, player: &mut Player) -> Result<Unit, RtsException> {
         if self.retrieve_money(&unit_type, player) {
-            Ok(self.unit_factory.build_unit(unit_type))
+            Ok(self.unit_factory.build_unit(unit_type))?
         } else {
             Err(RtsException::BuyUnitException(
                 unit_type,
@@ -38,7 +56,7 @@ impl Building {
 
 #[cfg(test)]
 mod test_building {
-    use super::Building;
+    use super::Barrack;
     use crate::entity::player::Player;
     use crate::entity::unit::UnitType;
 
@@ -46,7 +64,7 @@ mod test_building {
     pub fn should_buy_unit() {
         let mut player = Player::new(String::from("Tigran"));
         player.update_money(100);
-        let barrack = Building::default();
+        let barrack = Barrack::default();
 
         if let Ok(unit) = barrack.buy_unit(UnitType::Classic, &mut player) {
             assert_eq!(&20, unit.get_health());
