@@ -9,7 +9,6 @@ extern crate diesel;
 pub mod models;
 pub mod schema;
 
-use std::env;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
@@ -28,7 +27,6 @@ use diesel::r2d2::ConnectionManager;
 use r2d2::Pool;
 use rand::rngs::OsRng;
 use rand::RngCore;
-use serde::Deserialize;
 use serde::Deserialize;
 
 use rts_core::components::game::Game;
