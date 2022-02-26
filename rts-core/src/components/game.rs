@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use tokio::time;
+use std::thread;
+use std::time;
 
 use crate::components::building::{Bank, Barrack};
 use crate::components::displayer::{ConsoleDisplayer, Displayer};
@@ -15,16 +16,30 @@ type InnerPlayer = Rc<RefCell<Player>>; // May evolve to Arc<Mutex<>>
 type InnerMoveState = Arc<Mutex<Vec<MoveState>>>;
 type InnerUnitsPlayGround = Arc<Mutex<PlayGround<Unit>>>;
 
-// This is an event loop
-pub struct Game {
+/// Public hooks for clients to be update on game state.
+pub trait GameStateObserver {
+    fn update(&self, m: &MoveState);
+}
+
+/// Our RTS game is represented by this structure.
+/// It is an event loop
+pub struct Game<State>
+where
+    State: GameStateObserver,
+{
     barrack: Barrack,
     players: Vec<InnerPlayer>,
     moves: InnerMoveState,
     map: InnerUnitsPlayGround,
+    game_state_observers: Vec<State>,
 }
 
-impl Game {
-    pub fn new(players: Vec<Player>) -> Self {
+impl<State> Game<State>
+where
+    State: GameStateObserver,
+{
+    /// Create a new game with the given players and clients wanting notifications
+    pub fn new(players: Vec<Player>, game_state_observers: Vec<State>) -> Self {
         let players: Vec<InnerPlayer> = players
             .into_iter()
             .map(|player| Rc::new(RefCell::new(player)))
@@ -34,6 +49,7 @@ impl Game {
             players,
             moves: Arc::new(Mutex::new(Vec::new())),
             map: Arc::new(Mutex::new(PlayGround::default())),
+            game_state_observers,
         }
     }
 
@@ -50,21 +66,16 @@ impl Game {
     }
 
     /// Events loop to handle game state
-    pub async fn start(&self) -> Result<(), RtsException> {
+    pub fn start(&self) -> Result<(), RtsException> {
         loop {
             self.execute_recurring_actions()?;
 
             if self.check_game_is_over()? {
                 break;
             }
-            time::sleep(std::time::Duration::from_secs(10)).await;
+            thread::sleep(time::Duration::from_secs(10));
         }
         Ok(())
-    }
-
-    /// Plays a turn with player execute given action
-    pub async fn play_with_async(&self, index: usize, action: Action) -> Result<(), RtsException> {
-        self.play_with(index, action)
     }
 
     // Essentialy to ease tests
@@ -80,7 +91,7 @@ impl Game {
             let result = self.execute_action(Rc::clone(player), action)?;
             self.update_moves_state(result)?;
             self.check_game_is_over()?;
-            self.update_observer()?;
+            self.update_observers()?;
             Ok(())
         } else {
             Err(RtsException::ExecuteActionException(format!(
@@ -91,7 +102,7 @@ impl Game {
         }
     }
 
-    fn update_observer(&self) -> Result<(), RtsException> {
+    fn update_observers(&self) -> Result<(), RtsException> {
         let moves_ptr = Arc::clone(&self.moves);
         let moves = moves_ptr.lock().map_err(|_| {
             RtsException::UpdatePlayGroundException(
@@ -104,13 +115,16 @@ impl Game {
                 let play_ground_ptr = Arc::clone(&self.map);
                 let mut play_ground_mutex = play_ground_ptr.lock().map_err(|_| {
                     RtsException::UpdatePlayGroundException(
-                        "Failed to acquire mutex for playground when updating this one"
-                            .to_string(),
+                        "Failed to acquire mutex for playground when updating this one".to_string(),
                     )
                 })?;
                 play_ground_mutex.update(unit_clone);
+                self.game_state_observers
+                    .iter()
+                    .for_each(|client| client.update(m));
             }
         }
+
         Ok(())
     }
 
@@ -210,7 +224,7 @@ mod tests_play_ground {
 
         let emma = Player::new("Emma".to_string());
 
-        let game = Game::new(vec![tigran, emma]);
+        let game = Game::new(vec![tigran, emma], Vec::new());
 
         let m = game.play_with(0, Action::BuyUnit(UnitType::Classic));
 
@@ -220,7 +234,7 @@ mod tests_play_ground {
     #[test]
     pub fn should_not_find_user() {
         let tigran = Player::new("Tigran".to_string());
-        let game = Game::new(vec![tigran]);
+        let game = Game::new(vec![tigran], Vec::new());
 
         let res = game.play_with(1, Action::BuyUnit(UnitType::Classic));
         assert!(res.is_err());
