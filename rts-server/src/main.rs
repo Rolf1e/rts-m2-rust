@@ -8,11 +8,13 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use actix_files as fs;
-use actix_web::http::Cookie;
+use actix_web::web::Data;
 use actix_web::{
     get, middleware, post, web, App, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 use argon2::{self, Config};
+use cookie::time::Duration;
+use cookie::Cookie;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::r2d2::ConnectionManager;
@@ -127,7 +129,7 @@ async fn login(info: web::Json<LoginInfo>, state: web::Data<AppState<'_>>) -> im
             HttpResponse::Ok()
                 .cookie(
                     Cookie::build(AUTH_COOKIE_NAME, token)
-                        .max_age(time::Duration::days(31))
+                        .max_age(Duration::days(31))
                         .finish(),
                 )
                 .body("Logged in")
@@ -142,7 +144,7 @@ async fn logout() -> impl (Responder) {
     HttpResponse::Ok()
         .cookie(
             Cookie::build(AUTH_COOKIE_NAME, "")
-                .max_age(time::Duration::zero())
+                .max_age(Duration::ZERO)
                 .finish(),
         )
         .body("Logged out")
@@ -150,7 +152,6 @@ async fn logout() -> impl (Responder) {
 
 fn get_current_user(req: &HttpRequest, state: &web::Data<AppState<'_>>) -> Option<Box<User>> {
     use self::schema::users::dsl::*;
-    use actix_web::HttpMessage;
     println!("Fetching the user from the cookies");
     // Read the authentication cookie
     let auth_token = match req.cookie(AUTH_COOKIE_NAME) {
@@ -315,7 +316,7 @@ async fn run_game() {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     println!("Starting the rts web server");
-    //std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
+    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
     env_logger::init();
 
     let database_url = dotenv::var("DATABASE_URL").expect("DATABASE_URL must be set");
@@ -329,13 +330,15 @@ async fn main() -> std::io::Result<()> {
     let tokens = Arc::new(RwLock::new(HashMap::new()));
 
     HttpServer::new(move || {
+        let app_state: Data<AppState> = Data::new(AppState {
+            pool: pool.clone(),
+            argon2_config: Config::default(),
+            tokens: tokens.clone(),
+        });
+
         App::new()
             // bind the database
-            .data(AppState {
-                pool: pool.clone(),
-                argon2_config: Config::default(),
-                tokens: tokens.clone(),
-            })
+            .app_data(app_state)
             // enable logger
             .wrap(middleware::Logger::default())
             // login route

@@ -7,7 +7,7 @@ services:
       DATABASE_URL: postgres://postgres:password@postgresql/postgres
       # TODO ignored at the moment
       LISTEN_URL: 0.0.0.0:8080
-      RUST_LOG: trace,actix_server=trace,actix_web=trace
+      # RUST_LOG: trace,actix_server=trace,actix_web=trace
     depends_on:
       postgresql:
         condition: service_healthy

@@ -7,6 +7,7 @@ RUN cargo install diesel_cli --no-default-features --features postgres
 
 # Only rebuild the libraries if the Cargo.toml files changed
 COPY Cargo.toml Cargo.toml
+COPY Cargo.lock Cargo.lock
 COPY rts-core/Cargo.toml rts-core/Cargo.toml
 RUN mkdir rts-core/src && touch rts-core/src/lib.rs
 COPY rts-server/Cargo.toml rts-server/Cargo.toml
