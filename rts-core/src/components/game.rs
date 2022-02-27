@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
 
@@ -8,13 +7,13 @@ use crate::components::building::{Bank, Barrack};
 use crate::components::displayer::{ConsoleDisplayer, Displayer};
 use crate::components::play_ground::{Coordinate, Identifier, PlayGround, PlayGroundObserver};
 use crate::entity::game_actions::{Action, MoveState};
-use crate::entity::player::Player;
+use crate::entity::player::{Player, TurnStrategy};
 use crate::entity::unit::{Unit, UnitType};
 use crate::exceptions::RtsException;
 
-type InnerPlayer = Rc<RefCell<Player>>; // May evolve to Arc<Mutex<>>
-type InnerMoveState = Arc<Mutex<Vec<MoveState>>>;
-type InnerUnitsPlayGround = Arc<Mutex<PlayGround<Unit>>>;
+type InnerPlayer = Rc<RefCell<Player>>; 
+type InnerMoveState = Rc<RefCell<Vec<MoveState>>>;
+type InnerUnitsPlayGround = Rc<RefCell<PlayGround<Unit>>>;
 
 /// Public hooks for clients to be update on game state.
 pub trait GameStateObserver {
@@ -22,24 +21,23 @@ pub trait GameStateObserver {
 }
 
 /// Our RTS game is represented by this structure.
-/// It is an event loop
-pub struct Game<State>
+pub struct Game<StateClient>
 where
-    State: GameStateObserver,
+    StateClient: GameStateObserver,
 {
     barrack: Barrack,
     players: Vec<InnerPlayer>,
     moves: InnerMoveState,
     map: InnerUnitsPlayGround,
-    game_state_observers: Vec<State>,
+    game_state_observers: Vec<StateClient>,
 }
 
-impl<State> Game<State>
+impl<StateClient> Game<StateClient>
 where
-    State: GameStateObserver,
+    StateClient: GameStateObserver,
 {
     /// Create a new game with the given players and clients wanting notifications
-    pub fn new(players: Vec<Player>, game_state_observers: Vec<State>) -> Self {
+    pub fn new(players: Vec<Player>, game_state_observers: Vec<StateClient>) -> Self {
         let players: Vec<InnerPlayer> = players
             .into_iter()
             .map(|player| Rc::new(RefCell::new(player)))
@@ -47,8 +45,8 @@ where
         Game {
             barrack: Barrack::default(),
             players,
-            moves: Arc::new(Mutex::new(Vec::new())),
-            map: Arc::new(Mutex::new(PlayGround::default())),
+            moves: Rc::new(RefCell::new(Vec::new())),
+            map: Rc::new(RefCell::new(PlayGround::default())),
             game_state_observers,
         }
     }
@@ -58,28 +56,37 @@ where
     }
 
     pub fn console_display(&self) -> Result<(), RtsException> {
-        let play_ground_ptdr = Arc::clone(&self.map);
-        let play_ground_mutex = play_ground_ptdr
-            .lock()
-            .map_err(|_| RtsException::GeneralException("".to_string()))?;
-        ConsoleDisplayer::display(&play_ground_mutex)
+        let play_ground_ptr = Rc::clone(&self.map);
+        let play_ground = play_ground_ptr.borrow();
+        ConsoleDisplayer::display(&play_ground)
     }
 
     /// Events loop to handle game state
     pub fn start(&self) -> Result<(), RtsException> {
         loop {
             self.execute_recurring_actions()?;
-
+            self.play_with_all_players()?;
+            self.update_observers()?;
             if self.check_game_is_over()? {
                 break;
             }
+
             thread::sleep(time::Duration::from_secs(10));
         }
         Ok(())
     }
 
-    // Essentialy to ease tests
-    pub fn play_with(&self, index: usize, action: Action) -> Result<(), RtsException> {
+    fn play_with_all_players(&self) -> Result<(), RtsException> {
+        for (i, player) in self.players.iter().enumerate() {
+            let p = Rc::clone(&player);
+            let action = p.borrow().ask();
+            self.play(i, action)?;
+        }
+
+        Ok(())
+    }
+
+    fn play(&self, index: usize, action: Action) -> Result<(), RtsException> {
         if index >= self.players.len() {
             Err(RtsException::ExecuteActionException(format!(
                 "Failed to find player {} when executing action {}",
@@ -90,8 +97,6 @@ where
             println!("Executing action {}", action.get_name());
             let result = self.execute_action(Rc::clone(player), action)?;
             self.update_moves_state(result)?;
-            self.check_game_is_over()?;
-            self.update_observers()?;
             Ok(())
         } else {
             Err(RtsException::ExecuteActionException(format!(
@@ -102,22 +107,29 @@ where
         }
     }
 
+    fn execute_recurring_actions(&self) -> Result<(), RtsException> {
+        for (i, _player) in self.players.iter().enumerate() {
+            self.play(i, Action::GiveMoneyBatch)?;
+        }
+
+        Ok(())
+    }
+
+    fn check_game_is_over(&self) -> Result<bool, RtsException> {
+        let moves_ptr = Rc::clone(&self.moves);
+        let moves_mutex = moves_ptr.borrow();
+
+        Ok(moves_mutex.contains(&MoveState::EndGame))
+    }
+
     fn update_observers(&self) -> Result<(), RtsException> {
-        let moves_ptr = Arc::clone(&self.moves);
-        let moves = moves_ptr.lock().map_err(|_| {
-            RtsException::UpdatePlayGroundException(
-                "Failed to acquire mutex for moves when updating playground observers".to_string(),
-            )
-        })?;
+        let moves_ptr = Rc::clone(&self.moves);
+        let moves = moves_ptr.borrow();
         for m in moves.iter() {
             if let MoveState::BuyUnit(unit) = m {
                 let unit_clone = unit.clone(); // Clone here should be ok, it will be the stored item
-                let play_ground_ptr = Arc::clone(&self.map);
-                let mut play_ground_mutex = play_ground_ptr.lock().map_err(|_| {
-                    RtsException::UpdatePlayGroundException(
-                        "Failed to acquire mutex for playground when updating this one".to_string(),
-                    )
-                })?;
+                let play_ground_ptr = Rc::clone(&self.map);
+                let mut play_ground_mutex = play_ground_ptr.borrow_mut();
                 play_ground_mutex.update(unit_clone);
                 self.game_state_observers
                     .iter()
@@ -128,34 +140,10 @@ where
         Ok(())
     }
 
-    fn check_game_is_over(&self) -> Result<bool, RtsException> {
-        let moves_ptr = Arc::clone(&self.moves);
-        let moves_mutex = moves_ptr.lock();
-        if let Ok(moves_mutex) = moves_mutex {
-            Ok(moves_mutex.contains(&MoveState::EndGame))
-        } else {
-            Err(RtsException::GeneralException(
-                "Failed to aquire mutex for moves when checking game is over".to_string(),
-            ))
-        }
-    }
-
     fn update_moves_state(&self, move_state: MoveState) -> Result<(), RtsException> {
-        let moves_ptr = Arc::clone(&self.moves);
-        let mut moves_mutex = moves_ptr.lock().map_err(|_| {
-            RtsException::GeneralException(
-                "Failed to aquire mutex for moves when updating playground state".to_string(),
-            )
-        })?;
+        let moves_ptr = Rc::clone(&self.moves);
+        let mut moves_mutex = moves_ptr.borrow_mut();
         moves_mutex.push(move_state);
-        Ok(())
-    }
-
-    fn execute_recurring_actions(&self) -> Result<(), RtsException> {
-        for (i, _player) in self.players.iter().enumerate() {
-            self.play_with(i, Action::GiveMoneyBatch)?;
-        }
-
         Ok(())
     }
 
@@ -178,12 +166,8 @@ where
         identifier: Identifier,
         coordinate: Coordinate,
     ) -> Result<MoveState, RtsException> {
-        let play_ground_ptr = Arc::clone(&self.map);
-        let play_ground_mutex = play_ground_ptr.lock().map_err(|_| {
-            RtsException::UpdatePlayGroundException(
-                "Failed to acquire playground mutex on moving unit".to_string(),
-            )
-        })?;
+        let play_ground_ptr = Rc::clone(&self.map);
+        let play_ground_mutex = play_ground_ptr.borrow();
         play_ground_mutex
             .update_cell(identifier, coordinate)
             .map(|_| MoveState::MoveUnit)
@@ -213,9 +197,18 @@ where
 mod tests_play_ground {
 
     use crate::components::game::Game;
-    use crate::entity::game_actions::Action;
+    use crate::entity::game_actions::{Action, MoveState};
     use crate::entity::player::Player;
     use crate::entity::unit::UnitType;
+
+    use super::GameStateObserver;
+
+    struct TestClientGameState();
+    impl GameStateObserver for TestClientGameState {
+        fn update(&self, _m: &MoveState) {
+            println!("client has been updated !");
+        }
+    }
 
     #[test]
     pub fn should_play_with_ai() {
@@ -224,9 +217,9 @@ mod tests_play_ground {
 
         let emma = Player::new("Emma".to_string());
 
-        let game = Game::new(vec![tigran, emma], Vec::new());
+        let game = Game::new(vec![tigran, emma], vec![TestClientGameState()]);
 
-        let m = game.play_with(0, Action::BuyUnit(UnitType::Classic));
+        let m = game.play(0, Action::BuyUnit(UnitType::Classic));
 
         assert!(m.is_ok());
     }
@@ -234,9 +227,9 @@ mod tests_play_ground {
     #[test]
     pub fn should_not_find_user() {
         let tigran = Player::new("Tigran".to_string());
-        let game = Game::new(vec![tigran], Vec::new());
+        let game = Game::new(vec![tigran], vec![TestClientGameState()]);
 
-        let res = game.play_with(1, Action::BuyUnit(UnitType::Classic));
+        let res = game.play(1, Action::BuyUnit(UnitType::Classic));
         assert!(res.is_err());
     }
 }

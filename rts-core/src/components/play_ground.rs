@@ -1,5 +1,6 @@
+use std::cell::RefCell;
 use std::fmt::Display;
-use std::sync::{Arc, Mutex};
+use std::rc::Rc;
 
 use crate::exceptions::RtsException;
 
@@ -16,7 +17,7 @@ where
     ) -> Result<(), RtsException>;
 }
 
-pub type Cell<T> = Arc<Mutex<UnitHolder<T>>>;
+pub type Cell<T> = Rc<RefCell<UnitHolder<T>>>;
 pub type Coordinate = (f32, f32);
 
 pub type Identifier = i128;
@@ -48,7 +49,7 @@ where
 {
     fn update(&mut self, unit: T) {
         self.cells
-            .push(Arc::new(Mutex::new(UnitHolder::new(unit, (0.0, 0.0)))));
+            .push(Rc::new(RefCell::new(UnitHolder::new(unit, (0.0, 0.0)))));
     }
 
     fn update_cell(
@@ -64,18 +65,10 @@ where
             )));
         }
 
-        let cell_ptr = Arc::clone(cell.unwrap());
-        let cell_mutex = cell_ptr.lock();
-        match cell_mutex {
-            Ok(mut cell) => {
-                cell.update(coordinate);
-                Ok(())
-            }
-            Err(_) => Err(RtsException::UpdatePlayGroundException(format!(
-                "Failed to update cell with id {}",
-                identifier
-            ))),
-        }
+        let cell_ptr = Rc::clone(cell.unwrap());
+        let mut cell = cell_ptr.borrow_mut();
+        cell.update(coordinate);
+        Ok(())
     }
 }
 
@@ -128,7 +121,7 @@ where
 
     pub fn add_unit(&mut self, content: T) {
         let holder = UnitHolder::new(content, (0.0, 0.0));
-        self.cells.push(Arc::new(Mutex::new(holder)))
+        self.cells.push(Rc::new(RefCell::new(holder)))
     }
 
     pub fn get_cells(&self) -> &[Cell<T>] {
@@ -137,12 +130,9 @@ where
 
     fn find_cell_by(&self, identifier: &Identifier) -> Option<&Cell<T>> {
         self.cells.iter().find(|cell| {
-            let cell = Arc::clone(cell);
-            let mutex = cell.lock();
-            match mutex {
-                Ok(cell) => cell.is(identifier),
-                Err(_) => false,
-            }
+            let cell_ptr = Rc::clone(cell);
+            let cell = cell_ptr.borrow();
+            cell.is(identifier)
         })
     }
 }
@@ -153,9 +143,9 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for cell in &self.cells {
-            let cell_ptr = Arc::clone(cell);
-            let cell_mutex = cell_ptr.lock().map_err(|_| std::fmt::Error)?;
-            write!(f, "| {} |", *cell_mutex)?;
+            let cell_ptr = Rc::clone(cell);
+            let cell = cell_ptr.borrow();
+            write!(f, "| {} |", *cell)?;
         }
         Ok(())
     }

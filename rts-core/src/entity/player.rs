@@ -1,17 +1,19 @@
 use std::fmt::Display;
 
+use super::game_actions::Action;
+
+pub trait TurnStrategy {
+    fn ask(&self) -> Action;
+}
+
 pub struct Player {
     name: String,
     wallet: Wallet,
 }
 
-struct Wallet {
-    money: i32,
-}
-
-impl Wallet {
-    fn new() -> Self {
-        Wallet { money: 0 }
+impl TurnStrategy for Player {
+    fn ask(&self) -> Action {
+        todo!() 
     }
 }
 
@@ -38,6 +40,16 @@ impl Player {
         } else {
             None
         }
+    }
+}
+
+struct Wallet {
+    money: i32,
+}
+
+impl Wallet {
+    fn new() -> Self {
+        Wallet { money: 0 }
     }
 }
 

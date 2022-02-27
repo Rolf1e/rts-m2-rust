@@ -1,16 +1,19 @@
-use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use crate::entity::unit::{Unit, UnitType};
 use crate::exceptions::RtsException;
 
 use super::play_ground::Identifier;
 
+type InnerIdentifier = Rc<RefCell<Identifier>>;
+
 pub struct UnitFactory {
     counter: Counter,
 }
 
 pub struct Counter {
-    identifier: Arc<Mutex<Identifier>>,
+    identifier: InnerIdentifier,
 }
 
 impl Default for UnitFactory {
@@ -36,31 +39,20 @@ impl UnitFactory {
 impl Counter {
     fn new() -> Self {
         Counter {
-            identifier: Arc::new(Mutex::new(0)),
+            identifier: Rc::new(RefCell::new(0)),
         }
     }
 
     fn get_next(&self) -> Result<Identifier, RtsException> {
         self.increment()?;
-        let id = Arc::clone(&self.identifier);
-        let mutex = id.lock();
-        match mutex {
-            Ok(mutex) => Ok(*mutex),
-            Err(_) => Err(RtsException::GeneralException(
-                "Failed to unlock Counter mutex".to_string(),
-            )),
-        }
+        let id = Rc::clone(&self.identifier);
+        let mutex = id.borrow();
+        Ok(*mutex)
     }
 
     fn increment(&self) -> Result<(), RtsException> {
-        let id = Arc::clone(&self.identifier);
-        let id = id.lock();
-        if id.is_err() {
-            return Err(RtsException::GeneralException(
-                "Failed to unlock Counter mutex".to_string(),
-            ));
-        }
-        let mut id = id.unwrap();
+        let id = Rc::clone(&self.identifier);
+        let mut id = id.borrow_mut();
 
         if let Some(res) = id.checked_add(1) {
             *id = res;
