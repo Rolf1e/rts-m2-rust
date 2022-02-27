@@ -1,19 +1,22 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::thread;
-use std::time;
+use std::time::Duration;
 
 use crate::components::building::{Bank, Barrack};
 use crate::components::displayer::{ConsoleDisplayer, Displayer};
 use crate::components::play_ground::{Coordinate, Identifier, PlayGround, PlayGroundObserver};
+use crate::components::turn_strategy::TurnStrategy;
 use crate::entity::game_actions::{Action, MoveState};
-use crate::entity::player::{Player, TurnStrategy};
+use crate::entity::player::{Player, TurnStrategyRequester};
 use crate::entity::unit::{Unit, UnitType};
 use crate::exceptions::RtsException;
 
-type InnerPlayer = Rc<RefCell<Player>>; 
+type InnerPlayer = Rc<RefCell<Player<TurnStrategy>>>;
 type InnerMoveState = Rc<RefCell<Vec<MoveState>>>;
 type InnerUnitsPlayGround = Rc<RefCell<PlayGround<Unit>>>;
+
+const TURN_DURATION_IN_SECONDS: u64 = 10;
 
 /// Public hooks for clients to be update on game state.
 pub trait GameStateObserver {
@@ -29,6 +32,7 @@ where
     players: Vec<InnerPlayer>,
     moves: InnerMoveState,
     map: InnerUnitsPlayGround,
+    /// External clients wanting notifications on game state
     game_state_observers: Vec<StateClient>,
 }
 
@@ -37,7 +41,7 @@ where
     StateClient: GameStateObserver,
 {
     /// Create a new game with the given players and clients wanting notifications
-    pub fn new(players: Vec<Player>, game_state_observers: Vec<StateClient>) -> Self {
+    pub fn new(players: Vec<Player<TurnStrategy>>, game_state_observers: Vec<StateClient>) -> Self {
         let players: Vec<InnerPlayer> = players
             .into_iter()
             .map(|player| Rc::new(RefCell::new(player)))
@@ -71,7 +75,7 @@ where
                 break;
             }
 
-            thread::sleep(time::Duration::from_secs(10));
+            thread::sleep(Duration::from_secs(TURN_DURATION_IN_SECONDS));
         }
         Ok(())
     }
@@ -79,7 +83,7 @@ where
     fn play_with_all_players(&self) -> Result<(), RtsException> {
         for (i, player) in self.players.iter().enumerate() {
             let p = Rc::clone(&player);
-            let action = p.borrow().ask();
+            let action = p.borrow().request()?;
             self.play(i, action)?;
         }
 
@@ -197,11 +201,13 @@ where
 mod tests_play_ground {
 
     use crate::components::game::Game;
+    use crate::components::turn_strategy::TurnStrategy;
     use crate::entity::game_actions::{Action, MoveState};
     use crate::entity::player::Player;
     use crate::entity::unit::UnitType;
 
     use super::GameStateObserver;
+
 
     struct TestClientGameState();
     impl GameStateObserver for TestClientGameState {
@@ -212,10 +218,10 @@ mod tests_play_ground {
 
     #[test]
     pub fn should_play_with_ai() {
-        let mut tigran = Player::new("Tigran".to_string());
+        let mut tigran = Player::new("Tigran".to_string(), TurnStrategy::AI);
         tigran.update_money(100);
 
-        let emma = Player::new("Emma".to_string());
+        let emma = Player::new("Emma".to_string(), TurnStrategy::AI);
 
         let game = Game::new(vec![tigran, emma], vec![TestClientGameState()]);
 
@@ -226,7 +232,7 @@ mod tests_play_ground {
 
     #[test]
     pub fn should_not_find_user() {
-        let tigran = Player::new("Tigran".to_string());
+        let tigran = Player::new("Tigran".to_string(), TurnStrategy::AI);
         let game = Game::new(vec![tigran], vec![TestClientGameState()]);
 
         let res = game.play(1, Action::BuyUnit(UnitType::Classic));
