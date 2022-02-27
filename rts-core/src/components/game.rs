@@ -8,7 +8,7 @@ use crate::components::displayer::{ConsoleDisplayer, Displayer};
 use crate::components::play_ground::{Coordinate, Identifier, PlayGround, PlayGroundObserver};
 use crate::components::turn_strategy::TurnStrategy;
 use crate::entity::game_actions::{Action, MoveState};
-use crate::entity::player::{Player, TurnStrategyRequester};
+use crate::entity::player::Player;
 use crate::entity::unit::{Unit, UnitType};
 use crate::exceptions::RtsException;
 
@@ -82,8 +82,8 @@ where
 
     fn play_with_all_players(&self) -> Result<(), RtsException> {
         for (i, player) in self.players.iter().enumerate() {
-            let p = Rc::clone(&player);
-            let action = p.borrow().request()?;
+            let player_ptr = Rc::clone(player);
+            let action = player_ptr.borrow().request()?;
             self.play(i, action)?;
         }
 
@@ -207,7 +207,6 @@ mod tests_play_ground {
     use crate::entity::unit::UnitType;
 
     use super::GameStateObserver;
-
 
     struct TestClientGameState();
     impl GameStateObserver for TestClientGameState {

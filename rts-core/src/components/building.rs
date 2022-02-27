@@ -1,11 +1,10 @@
 use crate::components::unit_factory::UnitFactory;
-use crate::components::turn_strategy::TurnStrategy;
 use crate::entity::player::Player;
+use crate::entity::player::TurnStrategyRequester;
 use crate::entity::unit::{Unit, UnitType};
 use crate::exceptions::RtsException;
 
-
-/// Produces units and get money from players
+/// Produce units and take money from players
 pub struct Barrack {
     unit_factory: UnitFactory,
 }
@@ -22,7 +21,9 @@ impl Default for Barrack {
 const NEW_MONEY_BATCH: i32 = 100;
 
 impl Bank {
-    pub fn give_money(player: &mut Player<TurnStrategy>) -> Result<(), RtsException> {
+    pub fn give_money<T: TurnStrategyRequester>(
+        player: &mut Player<T>,
+    ) -> Result<(), RtsException> {
         if let Some(_money) = player.update_money(NEW_MONEY_BATCH) {
             Ok(())
         } else {
@@ -40,7 +41,11 @@ impl Barrack {
         }
     }
 
-    pub fn buy_unit(&self, unit_type: UnitType, player: &mut Player<TurnStrategy>) -> Result<Unit, RtsException> {
+    pub fn buy_unit<T: TurnStrategyRequester>(
+        &self,
+        unit_type: UnitType,
+        player: &mut Player<T>,
+    ) -> Result<Unit, RtsException> {
         if self.retrieve_money(&unit_type, player) {
             Ok(self.unit_factory.build_unit(unit_type))?
         } else {
@@ -51,7 +56,11 @@ impl Barrack {
         }
     }
 
-    fn retrieve_money(&self, unit_type: &UnitType, player: &mut Player<TurnStrategy>) -> bool {
+    fn retrieve_money<T: TurnStrategyRequester>(
+        &self,
+        unit_type: &UnitType,
+        player: &mut Player<T>,
+    ) -> bool {
         player.update_money(-unit_type.get_cost() as i32).is_some()
     }
 }
@@ -59,9 +68,9 @@ impl Barrack {
 #[cfg(test)]
 mod test_building {
     use super::Barrack;
+    use crate::components::turn_strategy::TurnStrategy;
     use crate::entity::player::Player;
     use crate::entity::unit::UnitType;
-    use crate::components::turn_strategy::TurnStrategy;
 
     #[test]
     pub fn should_buy_unit() {
