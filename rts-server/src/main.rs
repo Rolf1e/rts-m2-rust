@@ -336,11 +336,7 @@ async fn main() -> std::io::Result<()> {
             tokens: tokens.clone(),
         });
 
-        App::new()
-            // bind the database
-            .app_data(app_state)
-            // enable logger
-            .wrap(middleware::Logger::default())
+        let api_scope = web::scope("/api")
             // login route
             .service(login)
             // logout route
@@ -350,9 +346,25 @@ async fn main() -> std::io::Result<()> {
             // ai submit route
             .service(submit_ai)
             // leaderboard route
-            .service(leaderboard)
+            .service(leaderboard);
+
+        // TODO not great, we should only use this for routes defined in the front, and send a 404 for the rest
+        let index_fallback = fs::NamedFile::open("./rts-server/static/index.html")
+            .expect("Could not load the fallback index file.");
+
+        let static_service = fs::Files::new("/", "./rts-server/static/")
+            .index_file("index.html")
+            .default_handler(index_fallback);
+
+        App::new()
+            // bind the database
+            .app_data(app_state)
+            // enable logger
+            .wrap(middleware::Logger::default())
+            // add the api routes
+            .service(api_scope)
             // default to files in ./rts-server/static
-            .service(fs::Files::new("/", "./rts-server/static/").index_file("index.html"))
+            .service(static_service)
     })
     .bind(listen_url)?
     .run()
