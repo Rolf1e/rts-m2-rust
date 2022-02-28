@@ -1,3 +1,5 @@
+use reqwasm::http::Request;
+use serde::Deserialize;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
@@ -61,9 +63,38 @@ fn switch(routes: &Route) -> Html {
     }
 }
 
+#[derive(Clone, PartialEq, Deserialize)]
+struct LoginState {
+    username: String,
+    user_id: i32,
+}
+
 #[function_component(App)]
 fn app() -> Html {
-    let logged_in = use_state(|| false); // TODO set from cookies?
+    let login_state = use_state(|| None);
+    {
+        let login_state = login_state.clone();
+        use_effect_with_deps(
+            move |_| {
+                let login_state = login_state.clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    let fetched_state: Option<LoginState> = match Request::get("/api/login_status")
+                        .send()
+                        .await
+                        .unwrap()
+                        .json()
+                        .await
+                    {
+                        Ok(state) => Some(state),
+                        Err(_) => None,
+                    };
+                    login_state.set(fetched_state);
+                });
+                || ()
+            },
+            (),
+        );
+    }
 
     html! {
         <BrowserRouter>
@@ -75,9 +106,9 @@ fn app() -> Html {
                         <li><Link<Route> to={Route::AIUpload}>{ "Upload AI" }</Link<Route>></li>
                         <li><a href="https://github.com/Rolf1e/rts-m2-rust">{ "View on github" }</a></li>
                         <li>{
-                            match *logged_in {
-                                false => html! { <Link<Route> to={Route::Login}>{ "Log in" }</Link<Route>> },
-                                true => html! { <Link<Route> to={Route::HomeScreen}>{ "Log out" }</Link<Route>> },
+                            match *login_state {
+                                None => html! { <Link<Route> to={Route::Login}>{ "Log in" }</Link<Route>> },
+                                Some(_) => html! { <Link<Route> to={Route::HomeScreen}>{ "Log out" }</Link<Route>> },
                             }
                         }</li>
                     </ul>
