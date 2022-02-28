@@ -1,11 +1,19 @@
 use yew::prelude::*;
+use yew_router::prelude::*;
 
-enum Page {
+#[derive(Clone, Routable, PartialEq)]
+enum Route {
+    #[at("/")]
     HomeScreen,
+    #[at("/login")]
     Login,
-    GamePlayback,
+    #[at("/leaderboard")]
     Leaderboard,
+    #[at("/upload")]
     AIUpload,
+    #[not_found]
+    #[at("/404")]
+    NotFound,
 }
 
 #[function_component(HomeScreen)]
@@ -36,46 +44,54 @@ fn ai_upload() -> Html {
     }
 }
 
+#[function_component(PageNotFound)]
+fn page_not_found() -> Html {
+    html! {
+        <h1>{ "Page not found" }</h1>
+    }
+}
+
+fn switch(routes: &Route) -> Html {
+    match routes {
+        Route::HomeScreen => html! { <HomeScreen/> },
+        Route::Login => html! { <Login/> },
+        Route::Leaderboard => html! { <Leaderboard/> },
+        Route::AIUpload => html! { <AIUpload/> },
+        Route::NotFound => html! { <PageNotFound/> },
+    }
+}
+
 #[function_component(App)]
 fn app() -> Html {
-    let selected_page = use_state(|| Page::HomeScreen);
     let logged_in = use_state(|| false); // TODO set from cookies?
 
     html! {
-        <>
+        <BrowserRouter>
             <header>
                 <nav>
                     <ul>
-                        <li><a href="#" onclick={let selected_page = selected_page.clone(); Callback::from(move |_| selected_page.set(Page::HomeScreen))}>{ "Home" }</a></li>
-                        <li><a href="#" onclick={let selected_page = selected_page.clone(); Callback::from(move |_| selected_page.set(Page::Leaderboard))}>{ "View leaderboard" }</a></li>
-                        <li><a href="#" onclick={let selected_page = selected_page.clone(); Callback::from(move |_| selected_page.set(Page::AIUpload))}>{ "Upload AI" }</a></li>
+                        <li><Link<Route> to={Route::HomeScreen}>{ "Home" }</Link<Route>></li>
+                        <li><Link<Route> to={Route::Leaderboard}>{ "Leaderboard" }</Link<Route>></li>
+                        <li><Link<Route> to={Route::AIUpload}>{ "Upload AI" }</Link<Route>></li>
                         <li><a href="https://github.com/Rolf1e/rts-m2-rust">{ "View on github" }</a></li>
-                        {
+                        <li>{
                             match *logged_in {
-                                false => html! { <li><a href="#" onclick={let selected_page = selected_page.clone(); Callback::from(move |_| selected_page.set(Page::Login))}>{ "Login" }</a></li> },
-                                true => html! { <li><a href="#" onclick={let selected_page = selected_page.clone(); Callback::from(move |_| selected_page.set(Page::HomeScreen))}>{ "Log out"}</a></li> },
+                                false => html! { <Link<Route> to={Route::Login}>{ "Log in" }</Link<Route>> },
+                                true => html! { <Link<Route> to={Route::HomeScreen}>{ "Log out" }</Link<Route>> },
                             }
-                        }
+                        }</li>
                     </ul>
                 </nav>
             </header>
             <hr/>
             <main>
-                {
-                    match *selected_page.clone() {
-                        Page::HomeScreen => html! { <HomeScreen/> },
-                        Page::Login => html! { <Login/> },
-                        Page::Leaderboard => html! { <Leaderboard/> },
-                        Page::AIUpload => html! { <AIUpload/> },
-                        _ => html! { "Page not handled!" },
-                    }
-                }
+                <Switch<Route> render={Switch::render(switch)} />
             </main>
             <hr/>
             <footer>
                 <p>{ "Built in Rust with yew!" }</p>
             </footer>
-        </>
+        </BrowserRouter>
     }
 }
 
