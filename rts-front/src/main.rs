@@ -6,8 +6,8 @@ use yew::prelude::*;
 use yew_router::prelude::*;
 
 use crate::contexts::*;
-use crate::screens::login::Login;
 use crate::screens::ai_upload::AIUpload;
+use crate::screens::login::Login;
 
 #[derive(Clone, Routable, PartialEq)]
 enum Route {
