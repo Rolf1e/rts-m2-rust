@@ -21,7 +21,7 @@ use diesel::r2d2::ConnectionManager;
 use r2d2::Pool;
 use rand::rngs::OsRng;
 use rand::RngCore;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use rts_core::components::game::Game;
 use rts_core::entity::game_actions::Action;
@@ -95,8 +95,19 @@ struct LoginInfo {
     password: String,
 }
 
+#[derive(Clone, PartialEq, Serialize)]
+#[serde(untagged)]
+enum LoginResult {
+    ValidLogin { username: String, user_id: i32 },
+    InvalidLogin { message: String },
+}
+
 #[post("/login")]
-async fn login(info: web::Json<LoginInfo>, state: web::Data<AppState<'_>>) -> impl Responder {
+async fn login(
+    info: web::Json<LoginInfo>,
+    req: HttpRequest,
+    state: web::Data<AppState<'_>>,
+) -> impl Responder {
     use self::schema::users::dsl::*;
     let conn = state.pool.get().expect("Could not connect to the database");
     let matching_users = users
@@ -108,7 +119,12 @@ async fn login(info: web::Json<LoginInfo>, state: web::Data<AppState<'_>>) -> im
         info.username, info.password
     );
     if matching_users.is_empty() {
-        HttpResponse::BadRequest().body("Invalid username or password")
+        let mut response = web::Json(LoginResult::InvalidLogin {
+            message: "Invalid username or password".to_string(),
+        })
+        .respond_to(&req);
+        *response.status_mut() = actix_web::http::StatusCode::UNAUTHORIZED;
+        response
     } else if matching_users.len() > 1 {
         panic!("Found multiple matching usernames!")
     } else {
@@ -126,16 +142,45 @@ async fn login(info: web::Json<LoginInfo>, state: web::Data<AppState<'_>>) -> im
                 .expect("Couldn't access the token storage")
                 .insert(token.clone(), matching_user.id);
             println!("Saved token {} for user id {}.", &token, matching_user.id);
-            HttpResponse::Ok()
-                .cookie(
-                    Cookie::build(AUTH_COOKIE_NAME, token)
+            let mut response = web::Json(LoginResult::ValidLogin {
+                username: matching_user.username.to_string(),
+                user_id: matching_user.id,
+            })
+            .respond_to(&req);
+            response
+                .add_cookie(
+                    &Cookie::build(AUTH_COOKIE_NAME, token)
                         .max_age(Duration::days(31))
                         .finish(),
                 )
-                .body("Logged in")
+                .expect("Could not build a valid cookie");
+            response
         } else {
-            HttpResponse::BadRequest().body("Invalid username or password")
+            let mut response = web::Json(LoginResult::InvalidLogin {
+                message: "Invalid username or password".to_string(),
+            })
+            .respond_to(&req);
+            *response.status_mut() = actix_web::http::StatusCode::UNAUTHORIZED;
+            response
         }
+    }
+}
+
+#[derive(Clone, PartialEq, Deserialize, Serialize)]
+#[serde(untagged)]
+enum LoginState {
+    LoggedOut,
+    LoggedIn { username: String, user_id: i32 },
+}
+
+#[get("/login_status")]
+async fn login_status(req: HttpRequest, state: web::Data<AppState<'_>>) -> impl Responder {
+    match get_current_user(&req, &state) {
+        None => web::Json(LoginState::LoggedOut),
+        Some(user) => web::Json(LoginState::LoggedIn {
+            username: user.username,
+            user_id: user.id,
+        }),
     }
 }
 
@@ -339,6 +384,8 @@ async fn main() -> std::io::Result<()> {
         let api_scope = web::scope("/api")
             // login route
             .service(login)
+            // login status route
+            .service(login_status)
             // logout route
             .service(logout)
             // register route
