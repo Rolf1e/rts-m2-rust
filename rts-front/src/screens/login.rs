@@ -3,8 +3,11 @@ use serde::{Deserialize, Serialize};
 use web_sys::HtmlInputElement;
 use weblog::console_log;
 use yew::prelude::*;
+use yew_router::prelude::*;
 
 use crate::contexts::*;
+use crate::routes::Route;
+use crate::utils::alert_message;
 
 #[derive(Serialize)]
 struct LoginRequest {
@@ -29,6 +32,7 @@ pub fn login_screen() -> Html {
     let username = use_state(|| "".to_string());
     let password = use_state(|| "".to_string());
     let login_context = use_context::<LoginContext>().expect("no context found");
+    let history = use_history().expect("???");
 
     let on_username_change = {
         let username = username.clone();
@@ -62,6 +66,7 @@ pub fn login_screen() -> Html {
                 password: password.to_string(),
             })
             .expect("Could not serialize request");
+            let history = history.clone();
             wasm_bindgen_futures::spawn_local(async move {
                 let response = match Request::post("/api/login")
                     .header("Content-Type", "application/json")
@@ -71,10 +76,7 @@ pub fn login_screen() -> Html {
                 {
                     Ok(response) => ResultOrResponse::Response(response),
                     Err(err) => {
-                        let window = gloo_utils::window();
-                        window
-                            .alert_with_message(&format!("Error logging in: {}", err))
-                            .unwrap();
+                        alert_message(&format!("Error logging in: {}", err));
                         ResultOrResponse::Result(LoginResult::InvalidLogin {
                             message: err.to_string(),
                         })
@@ -84,10 +86,7 @@ pub fn login_screen() -> Html {
                     ResultOrResponse::Response(resp) => match resp.json().await {
                         Ok(result) => result,
                         Err(err) => {
-                            let window = gloo_utils::window();
-                            window
-                                .alert_with_message(&format!("Error logging in: {}", err))
-                                .unwrap();
+                            alert_message(&format!("Error logging in: {}", err));
                             LoginResult::InvalidLogin {
                                 message: err.to_string(),
                             }
@@ -97,7 +96,9 @@ pub fn login_screen() -> Html {
                 };
                 match login_result {
                     LoginResult::ValidLogin { username, user_id } => {
-                        login_context.dispatch(LoginAction::Login { username, user_id })
+                        login_context.dispatch(LoginAction::Login { username, user_id });
+
+                        history.push(Route::HomeScreen);
                     }
                     LoginResult::InvalidLogin { message: _ } => {
                         login_context.dispatch(LoginAction::Logout)

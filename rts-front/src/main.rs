@@ -1,28 +1,17 @@
 mod contexts;
+mod routes;
 mod screens;
+mod utils;
 
 use reqwasm::http::Request;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
 use crate::contexts::*;
+use crate::routes::Route;
 use crate::screens::ai_upload::AIUpload;
 use crate::screens::login::Login;
-
-#[derive(Clone, Routable, PartialEq)]
-enum Route {
-    #[at("/")]
-    HomeScreen,
-    #[at("/login")]
-    Login,
-    #[at("/leaderboard")]
-    Leaderboard,
-    #[at("/upload")]
-    AIUpload,
-    #[not_found]
-    #[at("/404")]
-    NotFound,
-}
+use crate::utils::alert_message;
 
 #[function_component(HomeScreen)]
 fn home_screen() -> Html {
@@ -48,6 +37,30 @@ fn page_not_found() -> Html {
 #[function_component(NavigationBar)]
 fn navigation_bar() -> Html {
     let login_context = use_context::<LoginContext>().expect("no context found");
+    let history = use_history().unwrap();
+
+    let on_logout_click = {
+        let login_context = login_context.clone();
+        Callback::from(move |e: MouseEvent| {
+            // Prevent the link navigation
+            e.prevent_default();
+
+            let login_context = login_context.clone();
+            let history = history.clone();
+            // Call the backend route /api/logout
+            wasm_bindgen_futures::spawn_local(async move {
+                match Request::post("/api/logout").send().await {
+                    Ok(_) => (),
+                    Err(err) => alert_message(&format!("Couldn't log out: {}", err)),
+                }
+                // Redirect to home screen
+                history.push(Route::HomeScreen);
+                // Manually set the user as logged out (because the status updates too quickly)
+                login_context.dispatch(LoginAction::Logout)
+            });
+        })
+    };
+
     html! {
         <nav>
             <ul>
@@ -59,7 +72,7 @@ fn navigation_bar() -> Html {
                     match *login_context {
                         LoginState::Checking => html! { "Loading…" },
                         LoginState::LoggedOut => html! { <Link<Route> to={Route::Login}>{ "Log in" }</Link<Route>> },
-                        LoginState::LoggedIn{ username: _, user_id: _ } => html! { <Link<Route> to={Route::HomeScreen}>{ "Log out" }</Link<Route>> },
+                        LoginState::LoggedIn{ username: _, user_id: _ } => html! { <a onclick={on_logout_click} href="/">{ "Log out" }</a> },
                     }
                 }</li>
             </ul>
