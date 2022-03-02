@@ -7,6 +7,8 @@ pub trait TurnStrategyRequester {
     fn request(&self) -> Result<Action, RtsException>;
 }
 
+pub type AICode = String;
+
 pub struct Player<TurnStrategy>
 where
     TurnStrategy: TurnStrategyRequester,
@@ -14,17 +16,19 @@ where
     name: String,
     wallet: Wallet,
     turn_strategy_requester: TurnStrategy,
+    ai_code: AICode,
 }
 
 impl<TurnStrategy> Player<TurnStrategy>
 where
     TurnStrategy: TurnStrategyRequester,
 {
-    pub fn new(name: String, turn_strategy_requester: TurnStrategy) -> Self {
+    pub fn new(name: String, turn_strategy_requester: TurnStrategy, ai_code: AICode) -> Self {
         Player {
             name,
             wallet: Wallet::new(),
             turn_strategy_requester,
+            ai_code
         }
     }
 
@@ -93,14 +97,14 @@ mod test_wallet {
 
     #[test]
     pub fn should_earn_money() {
-        let mut player = Player::new("Tigran".to_string(), TestTurnStrategyRequester);
+        let mut player = Player::new("Tigran".to_string(), TestTurnStrategyRequester, String::new());
         player.update_money(10);
         assert_eq!(&10, player.get_money())
     }
 
     #[test]
     pub fn should_loose_money() {
-        let mut player = Player::new("Tigran".to_string(), TestTurnStrategyRequester);
+        let mut player = Player::new("Tigran".to_string(), TestTurnStrategyRequester, String::new());
         player.update_money(10);
         player.update_money(-8);
         assert_eq!(&2, player.get_money())

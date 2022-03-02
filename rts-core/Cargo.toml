@@ -7,3 +7,7 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.16.1", features = ["full"] } # @TODO remove
+
+[dependencies.pyo3]
+version = "0.16.0"
+features = ["auto-initialize"]

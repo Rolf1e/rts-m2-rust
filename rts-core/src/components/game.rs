@@ -216,10 +216,10 @@ mod tests_play_ground {
 
     #[test]
     pub fn should_play_with_ai() {
-        let mut tigran = Player::new("Tigran".to_string(), TurnStrategy::AI);
+        let mut tigran = Player::new("Tigran".to_string(), TurnStrategy::AI, String::new());
         tigran.update_money(100);
 
-        let emma = Player::new("Emma".to_string(), TurnStrategy::AI);
+        let emma = Player::new("Emma".to_string(), TurnStrategy::AI, String::new());
 
         let game = Game::new(vec![tigran, emma], vec![TestClientGameState()]);
 
@@ -230,7 +230,7 @@ mod tests_play_ground {
 
     #[test]
     pub fn should_not_find_user() {
-        let tigran = Player::new("Tigran".to_string(), TurnStrategy::AI);
+        let tigran = Player::new("Tigran".to_string(), TurnStrategy::AI, String::new());
         let game = Game::new(vec![tigran], vec![TestClientGameState()]);
 
         let res = game.play(1, Action::BuyUnit(UnitType::Classic));

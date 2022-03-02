@@ -10,6 +10,8 @@ pub enum RtsException {
     StoreUnitCoordinatesException(String),
     UpdatePlayGroundException(String),
     UpdatePlayerException(String), // action
+    PythonException(String),
+    PythonCompileCodeException(String),
 }
 
 impl Display for RtsException {
@@ -25,12 +27,18 @@ impl Display for RtsException {
             RtsException::GeneralException(m)
             | RtsException::ExecuteActionException(m)
             | RtsException::UpdatePlayGroundException(m)
-            | RtsException::StoreUnitCoordinatesException(m) => {
+            | RtsException::StoreUnitCoordinatesException(m)
+            | RtsException::PythonException(m) => {
                 write!(f, "Rts Game: {}", m)
             }
             RtsException::BuyUnitException(u, m) => {
                 write!(f, "Rts Game: Failed to buy unit {} because {}", u, m)
             }
+            RtsException::PythonCompileCodeException(hash) => write!(
+                f,
+                "Rts Game: Failed to compile python code with hash {}",
+                hash
+            ),
         }
     }
 }

@@ -74,7 +74,7 @@ mod test_building {
 
     #[test]
     pub fn should_buy_unit() {
-        let mut player = Player::new(String::from("Tigran"), TurnStrategy::AI);
+        let mut player = Player::new(String::from("Tigran"), TurnStrategy::AI, String::new());
         player.update_money(100);
         let barrack = Barrack::default();
 
