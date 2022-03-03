@@ -9,19 +9,19 @@ use std::sync::{Arc, Mutex};
 use crate::entity::game_actions::Action;
 use crate::exceptions::RtsException;
 
-type InnerMap = Arc<Mutex<HashMap<u64, PyModule>>>;
+type InnerMap<'p> = Arc<Mutex<HashMap<u64, &'p PyModule>>>;
 
-pub struct PythonCodeExecutor {
-    compiled_ai_code: InnerMap,
+pub struct PythonCodeExecutor<'p> {
+    compiled_ai_code: InnerMap<'p>,
 }
 
-impl Default for PythonCodeExecutor {
+impl<'p> Default for PythonCodeExecutor<'p> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl PythonCodeExecutor {
+impl<'p> PythonCodeExecutor<'p> {
     pub fn register_new_ai(&self, ai_code: String) -> Result<(), RtsException> {
         let hash = calculate_hash(&ai_code);
 
