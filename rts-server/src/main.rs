@@ -265,6 +265,13 @@ enum AiInfo {
     Gist { username: String, hash: String },
 }
 
+#[derive(Serialize)]
+#[serde(untagged)]
+enum AiResult {
+    Successful,
+    Failed(String),
+}
+
 async fn fetch_ai_from_pastebin(paste_key: &str) -> Option<String> {
     reqwest::get(&format!(
         "https://pastebin.com/raw/{pastebin_key}",
@@ -298,7 +305,12 @@ async fn submit_ai(
 ) -> impl (Responder) {
     // Authenticate the user
     let user = match get_current_user(&req, &state) {
-        None => return HttpResponse::BadRequest().body("Not currently logged in"),
+        None => {
+            let mut response =
+                web::Json(AiResult::Failed("You are not logged in.".to_string())).respond_to(&req);
+            *response.status_mut() = actix_web::http::StatusCode::UNAUTHORIZED;
+            return response;
+        }
         Some(user) => user,
     };
     println!("Found an user matching the cookies");
@@ -309,14 +321,23 @@ async fn submit_ai(
         AiInfo::Ai(c) => c,
         AiInfo::PastebinKey(key) => match fetch_ai_from_pastebin(&key).await {
             None => {
-                return HttpResponse::ExpectationFailed()
-                    .body("Could not fetch code from pastebin.")
+                let mut response = web::Json(AiResult::Failed(
+                    "Could not fetch code from pastebin.".to_string(),
+                ))
+                .respond_to(&req);
+                *response.status_mut() = actix_web::http::StatusCode::SERVICE_UNAVAILABLE;
+                return response;
             }
             Some(c) => c,
         },
         AiInfo::Gist { username, hash } => match fetch_ai_from_gist(&username, &hash).await {
             None => {
-                return HttpResponse::ExpectationFailed().body("Could not fetch code from gist.")
+                let mut response = web::Json(AiResult::Failed(
+                    "Could not fetch code from gist.".to_string(),
+                ))
+                .respond_to(&req);
+                *response.status_mut() = actix_web::http::StatusCode::SERVICE_UNAVAILABLE;
+                return response;
             }
             Some(c) => c,
         },
@@ -327,13 +348,21 @@ async fn submit_ai(
         owner: user.id,
         code: &code,
     };
-    let ai: AI = diesel::insert_into(ais::table)
+    match diesel::insert_into(ais::table)
         .values(&new_ai)
-        .get_result(&conn)
-        .expect("Error creating ai");
-    println!("AI created with id {}", ai.id);
-
-    HttpResponse::Ok().body("Submitted AI")
+        .get_result::<AI>(&conn)
+    {
+        Ok(ai) => {
+            println!("AI created with id {}", ai.id);
+            web::Json(AiResult::Successful).respond_to(&req)
+        }
+        Err(err) => {
+            println!("Ai submit failed: {}", &err);
+            let mut response = web::Json(AiResult::Failed(err.to_string())).respond_to(&req);
+            *response.status_mut() = actix_web::http::StatusCode::BAD_REQUEST;
+            response
+        }
+    }
 }
 
 #[get("/leaderboard")]
