@@ -6,6 +6,8 @@ pub enum Route {
     HomeScreen,
     #[at("/login")]
     Login,
+    #[at("/register")]
+    Registration,
     #[at("/leaderboard")]
     Leaderboard,
     #[at("/upload")]

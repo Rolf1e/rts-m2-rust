@@ -11,6 +11,7 @@ use crate::contexts::*;
 use crate::routes::Route;
 use crate::screens::ai_upload::AIUpload;
 use crate::screens::login::Login;
+use crate::screens::register::Registration;
 use crate::utils::alert_message;
 
 #[function_component(HomeScreen)]
@@ -86,7 +87,8 @@ fn switch(routes: &Route) -> Html {
         Route::Login => html! { <Login/> },
         Route::Leaderboard => html! { <Leaderboard/> },
         Route::AIUpload => html! { <AIUpload/> },
-        Route::NotFound => html! { <PageNotFound/> },
+        Route::Registration => html! { <Registration/> },
+        _ => html! { <PageNotFound/> },
     }
 }
 

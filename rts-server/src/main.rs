@@ -54,7 +54,7 @@ pub fn create_user<'a>(
     password: &'a str,
     email: &'a str,
     config: &Config,
-) -> User {
+) -> Result<User, String> {
     let mut salt = vec![0u8; 64];
     OsRng.fill_bytes(&mut salt);
 
@@ -65,28 +65,51 @@ pub fn create_user<'a>(
         email,
     };
 
-    diesel::insert_into(users::table)
+    match diesel::insert_into(users::table)
         .values(&new_user)
         .get_result(conn)
-        .expect("Error creating user")
+    {
+        Ok(user) => Ok(user),
+        Err(err) => Err(err.to_string()),
+    }
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum RegisterResult {
+    Successful,
+    Failed(String),
 }
 
 #[post("/register")]
-async fn register(info: web::Json<RegisterInfo>, state: web::Data<AppState<'_>>) -> impl Responder {
+async fn register(
+    info: web::Json<RegisterInfo>,
+    req: HttpRequest,
+    state: web::Data<AppState<'_>>,
+) -> impl Responder {
     let conn = state.pool.get().expect("Could not connect to the database");
     println!(
         "Register request from {} with password {} and mail {}",
         info.username, info.password, info.email
     );
-    let user = create_user(
+    match create_user(
         &conn,
         &info.username,
         &info.password,
         &info.email,
         &state.argon2_config,
-    );
-    println!("User registered with id {}", user.id);
-    HttpResponse::Ok().body("Registered user")
+    ) {
+        Ok(user) => {
+            println!("User registered with id {}", user.id);
+            web::Json(RegisterResult::Successful).respond_to(&req)
+        }
+        Err(message) => {
+            println!("Registration failed: {}", &message);
+            let mut response = web::Json(RegisterResult::Failed(message)).respond_to(&req);
+            *response.status_mut() = actix_web::http::StatusCode::BAD_REQUEST;
+            response
+        }
+    }
 }
 
 #[derive(Deserialize)]

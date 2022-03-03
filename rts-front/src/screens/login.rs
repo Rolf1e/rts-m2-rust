@@ -112,14 +112,15 @@ pub fn login_screen() -> Html {
         <>
             <h1>{ "Login screen!" }</h1>
             <div>
-                <label>{ "Username:" }<input onchange={on_username_change} value={(*username).clone()}/></label>
+                <label>{ "Username:" }<input onchange={on_username_change} value={(*username).clone()} required={true}/></label>
             </div>
             <div>
-                <label>{ "Password:" }<input onchange={on_password_change} value={(*password).clone()} type="password"/></label>
+                <label>{ "Password:" }<input onchange={on_password_change} value={(*password).clone()} type="password" required={true}/></label>
             </div>
             <div>
                 <button onclick={on_submit}>{ "Login" }</button>
             </div>
+            <p>{ "Don't have an account yet? " }<Link<Route> to={Route::Registration}>{ "Create one!" }</Link<Route>></p>
         </>
     }
 }
