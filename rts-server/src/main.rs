@@ -361,12 +361,12 @@ async fn run_game() {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     println!("Starting the rts web server");
-    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
     env_logger::init();
 
     let database_url = dotenv::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
     let listen_url = dotenv::var("LISTEN_URL").expect("LISTEN_URL must be set");
+    println!("Listening on {}", &listen_url);
 
     let pool = r2d2::Pool::builder()
         .build(ConnectionManager::<PgConnection>::new(database_url))

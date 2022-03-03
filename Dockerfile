@@ -1,6 +1,6 @@
 FROM rust:1.59.0 as back_builder
 
-WORKDIR /usr/src/myapp
+WORKDIR /usr/src/rts-m2-rust
 
 # Install the requirements
 # utilities to build the back
@@ -10,31 +10,39 @@ RUN cargo install diesel_cli --no-default-features --features postgres
 RUN cargo install trunk
 RUN rustup target add wasm32-unknown-unknown
 
-# Only rebuild the libraries if the Cargo.toml files changed
-COPY Cargo.toml Cargo.toml
-COPY Cargo.lock Cargo.lock
-COPY rts-core/Cargo.toml rts-core/Cargo.toml
-RUN mkdir rts-core/src && touch rts-core/src/lib.rs
-COPY rts-server/Cargo.toml rts-server/Cargo.toml
-RUN mkdir rts-server/src && echo "fn main() {}" > rts-server/src/main.rs
-COPY rts-front/Cargo.toml rts-front/Cargo.toml
-RUN mkdir rts-front/src && echo "fn main() {}" > rts-front/src/main.rs
-RUN cargo build --release --bin rts-server
+# Add the cargo files
+ADD Cargo.toml Cargo.toml
+ADD Cargo.lock Cargo.lock
 
-# Remove fake libraries and mains
-RUN rm rts-core/src/lib.rs rts-server/src/main.rs rts-front/src/main.rs
+ADD rts-core/Cargo.toml rts-core/Cargo.toml
+ADD rts-server/Cargo.toml rts-server/Cargo.toml
+ADD rts-front/Cargo.toml rts-front/Cargo.toml
 
-# Copy the actual files
-COPY . .
+# Fetch the libraries
+RUN mkdir -p rts-server/src rts-front/src rts-core/src
+RUN echo "fn main() {}" > rts-server/src/main.rs
+RUN echo "fn main() {}" > rts-front/src/main.rs
+RUN touch rts-core/src/lib.rs
+RUN cargo fetch
+RUN rm -rf rts-server/src rts-front/src rts-core/src
 
-# Build the front
-RUN rustup target add wasm32-unknown-unknown # for some reason it's not enough at line 11??
+# Add the remaining files
+ADD rts-core/src rts-core/src
+
+ADD rts-server/src rts-server/src
+ADD rts-server/migrations rts-server/migrations
+ADD rts-server/static rts-server/static
+
+ADD rts-front/src rts-front/src
+ADD rts-front/index.html rts-front/index.html
+
+# Build everything
 RUN cd rts-front && trunk build --release
 RUN cp -r rts-front/dist/* rts-server/static/
-
-# Build and install the server
 RUN cargo build --release --bin rts-server
-RUN cargo install --path rts-server
+
+# Cargo install doesn't really work with workspaces
+RUN cp target/release/rts-server /usr/bin/
 
 CMD echo "=> Running migrations" && \
     cd rts-server && \
