@@ -21,7 +21,7 @@ use diesel::r2d2::ConnectionManager;
 use r2d2::Pool;
 use rand::rngs::OsRng;
 use rand::RngCore;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use rts_core::components::game::Game;
 use rts_core::entity::game_actions::Action;
@@ -48,27 +48,36 @@ struct RegisterInfo {
     email: String,
 }
 
-pub fn create_user<'a>(
+fn create_user(
     conn: &PgConnection,
-    username: &'a str,
-    password: &'a str,
-    email: &'a str,
+    register_info: RegisterInfo,
     config: &Config,
-) -> User {
+) -> Result<User, String> {
     let mut salt = vec![0u8; 64];
     OsRng.fill_bytes(&mut salt);
 
-    let hashed_password = argon2::hash_encoded(password.as_bytes(), &salt, config).unwrap();
+    let hashed_password =
+        argon2::hash_encoded(register_info.password.as_bytes(), &salt, config).unwrap();
     let new_user = NewUser {
-        username,
+        username: &register_info.username,
         password: &hashed_password,
-        email,
+        email: &register_info.email,
     };
 
-    diesel::insert_into(users::table)
+    match diesel::insert_into(users::table)
         .values(&new_user)
         .get_result(conn)
-        .expect("Error creating user")
+    {
+        Ok(user) => Ok(user),
+        Err(err) => Err(err.to_string()),
+    }
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum RegisterResult {
+    Successful,
+    Failed(String),
 }
 
 #[post("/register")]
@@ -78,21 +87,29 @@ async fn register(info: web::Json<RegisterInfo>, state: web::Data<AppState<'_>>)
         "Register request from {} with password {} and mail {}",
         info.username, info.password, info.email
     );
-    let user = create_user(
-        &conn,
-        &info.username,
-        &info.password,
-        &info.email,
-        &state.argon2_config,
-    );
-    println!("User registered with id {}", user.id);
-    HttpResponse::Ok().body("Registered user")
+    match create_user(&conn, info.into_inner(), &state.argon2_config) {
+        Ok(user) => {
+            println!("User registered with id {}", user.id);
+            HttpResponse::Ok().json(RegisterResult::Successful)
+        }
+        Err(message) => {
+            println!("Registration failed: {}", &message);
+            HttpResponse::BadRequest().json(RegisterResult::Failed(message))
+        }
+    }
 }
 
 #[derive(Deserialize)]
 struct LoginInfo {
     username: String,
     password: String,
+}
+
+#[derive(Clone, PartialEq, Serialize)]
+#[serde(untagged)]
+enum LoginResult {
+    ValidLogin { username: String, user_id: i32 },
+    InvalidLogin { message: String },
 }
 
 #[post("/login")]
@@ -108,7 +125,9 @@ async fn login(info: web::Json<LoginInfo>, state: web::Data<AppState<'_>>) -> im
         info.username, info.password
     );
     if matching_users.is_empty() {
-        HttpResponse::BadRequest().body("Invalid username or password")
+        HttpResponse::Unauthorized().json(LoginResult::InvalidLogin {
+            message: "Invalid username or password".to_string(),
+        })
     } else if matching_users.len() > 1 {
         panic!("Found multiple matching usernames!")
     } else {
@@ -126,28 +145,46 @@ async fn login(info: web::Json<LoginInfo>, state: web::Data<AppState<'_>>) -> im
                 .expect("Couldn't access the token storage")
                 .insert(token.clone(), matching_user.id);
             println!("Saved token {} for user id {}.", &token, matching_user.id);
+            let cookie = Cookie::build(AUTH_COOKIE_NAME, token)
+                .max_age(Duration::days(31))
+                .finish();
             HttpResponse::Ok()
-                .cookie(
-                    Cookie::build(AUTH_COOKIE_NAME, token)
-                        .max_age(Duration::days(31))
-                        .finish(),
-                )
-                .body("Logged in")
+                .cookie(cookie)
+                .json(LoginResult::ValidLogin {
+                    username: matching_user.username.to_string(),
+                    user_id: matching_user.id,
+                })
         } else {
-            HttpResponse::BadRequest().body("Invalid username or password")
+            HttpResponse::Unauthorized().json(LoginResult::InvalidLogin {
+                message: "Invalid username or password".to_string(),
+            })
         }
+    }
+}
+
+#[derive(Clone, PartialEq, Deserialize, Serialize)]
+#[serde(untagged)]
+enum LoginState {
+    LoggedOut,
+    LoggedIn { username: String, user_id: i32 },
+}
+
+#[get("/login_status")]
+async fn login_status(req: HttpRequest, state: web::Data<AppState<'_>>) -> impl Responder {
+    match get_current_user(&req, &state) {
+        None => web::Json(LoginState::LoggedOut),
+        Some(user) => web::Json(LoginState::LoggedIn {
+            username: user.username,
+            user_id: user.id,
+        }),
     }
 }
 
 #[post("/logout")]
 async fn logout() -> impl (Responder) {
-    HttpResponse::Ok()
-        .cookie(
-            Cookie::build(AUTH_COOKIE_NAME, "")
-                .max_age(Duration::ZERO)
-                .finish(),
-        )
-        .body("Logged out")
+    let mut cookie = Cookie::build(AUTH_COOKIE_NAME, "").finish();
+    cookie.make_removal();
+    HttpResponse::Ok().cookie(cookie).body("Logged out")
 }
 
 fn get_current_user(req: &HttpRequest, state: &web::Data<AppState<'_>>) -> Option<Box<User>> {
@@ -197,6 +234,13 @@ enum AiInfo {
     Gist { username: String, hash: String },
 }
 
+#[derive(Serialize)]
+#[serde(untagged)]
+enum AiResult {
+    Successful,
+    Failed(String),
+}
+
 async fn fetch_ai_from_pastebin(paste_key: &str) -> Option<String> {
     reqwest::get(&format!(
         "https://pastebin.com/raw/{pastebin_key}",
@@ -230,7 +274,10 @@ async fn submit_ai(
 ) -> impl (Responder) {
     // Authenticate the user
     let user = match get_current_user(&req, &state) {
-        None => return HttpResponse::BadRequest().body("Not currently logged in"),
+        None => {
+            return HttpResponse::Unauthorized()
+                .json(AiResult::Failed("You are not logged in.".to_string()));
+        }
         Some(user) => user,
     };
     println!("Found an user matching the cookies");
@@ -241,14 +288,17 @@ async fn submit_ai(
         AiInfo::Ai(c) => c,
         AiInfo::PastebinKey(key) => match fetch_ai_from_pastebin(&key).await {
             None => {
-                return HttpResponse::ExpectationFailed()
-                    .body("Could not fetch code from pastebin.")
+                return HttpResponse::ServiceUnavailable().json(AiResult::Failed(
+                    "Could not fetch code from pastebin.".to_string(),
+                ));
             }
             Some(c) => c,
         },
         AiInfo::Gist { username, hash } => match fetch_ai_from_gist(&username, &hash).await {
             None => {
-                return HttpResponse::ExpectationFailed().body("Could not fetch code from gist.")
+                return HttpResponse::ServiceUnavailable().json(AiResult::Failed(
+                    "Could not fetch code from gist.".to_string(),
+                ));
             }
             Some(c) => c,
         },
@@ -259,13 +309,19 @@ async fn submit_ai(
         owner: user.id,
         code: &code,
     };
-    let ai: AI = diesel::insert_into(ais::table)
+    match diesel::insert_into(ais::table)
         .values(&new_ai)
-        .get_result(&conn)
-        .expect("Error creating ai");
-    println!("AI created with id {}", ai.id);
-
-    HttpResponse::Ok().body("Submitted AI")
+        .get_result::<AI>(&conn)
+    {
+        Ok(ai) => {
+            println!("AI created with id {}", ai.id);
+            HttpResponse::Ok().json(AiResult::Successful)
+        }
+        Err(err) => {
+            println!("Ai submit failed: {}", &err);
+            HttpResponse::BadRequest().json(AiResult::Failed(err.to_string()))
+        }
+    }
 }
 
 #[get("/leaderboard")]
@@ -282,12 +338,12 @@ async fn leaderboard(state: web::Data<AppState<'_>>) -> impl Responder {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     println!("Starting the rts web server");
-    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
     env_logger::init();
 
     let database_url = dotenv::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
     let listen_url = dotenv::var("LISTEN_URL").expect("LISTEN_URL must be set");
+    println!("Listening on {}", &listen_url);
 
     let pool = r2d2::Pool::builder()
         .build(ConnectionManager::<PgConnection>::new(database_url))
@@ -302,13 +358,11 @@ async fn main() -> std::io::Result<()> {
             tokens: tokens.clone(),
         });
 
-        App::new()
-            // bind the database
-            .app_data(app_state)
-            // enable logger
-            .wrap(middleware::Logger::default())
+        let api_scope = web::scope("/api")
             // login route
             .service(login)
+            // login status route
+            .service(login_status)
             // logout route
             .service(logout)
             // register route
@@ -316,9 +370,25 @@ async fn main() -> std::io::Result<()> {
             // ai submit route
             .service(submit_ai)
             // leaderboard route
-            .service(leaderboard)
+            .service(leaderboard);
+
+        // TODO not great, we should only use this for routes defined in the front, and send a 404 for the rest
+        let index_fallback = fs::NamedFile::open("./rts-server/static/index.html")
+            .expect("Could not load the fallback index file.");
+
+        let static_service = fs::Files::new("/", "./rts-server/static/")
+            .index_file("index.html")
+            .default_handler(index_fallback);
+
+        App::new()
+            // bind the database
+            .app_data(app_state)
+            // enable logger
+            .wrap(middleware::Logger::default())
+            // add the api routes
+            .service(api_scope)
             // default to files in ./rts-server/static
-            .service(fs::Files::new("/", "./rts-server/static/").index_file("index.html"))
+            .service(static_service)
     })
     .bind(listen_url)?
     .run()
