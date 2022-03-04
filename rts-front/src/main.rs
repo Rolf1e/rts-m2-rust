@@ -8,37 +8,15 @@ use yew::prelude::*;
 use yew_router::prelude::*;
 
 use crate::contexts::*;
-use crate::routes::Route;
-use crate::screens::ai_upload::AIUpload;
-use crate::screens::login::Login;
-use crate::screens::register::Registration;
+use crate::routes::*;
 use crate::utils::alert_message;
-
-#[function_component(HomeScreen)]
-fn home_screen() -> Html {
-    html! {
-        <h1>{ "Home screen!" }</h1>
-    }
-}
-
-#[function_component(Leaderboard)]
-fn leaderboard() -> Html {
-    html! {
-        <h1>{ "Leaderboard!" }</h1>
-    }
-}
-
-#[function_component(PageNotFound)]
-fn page_not_found() -> Html {
-    html! {
-        <h1>{ "Page not found" }</h1>
-    }
-}
 
 #[function_component(NavigationBar)]
 fn navigation_bar() -> Html {
-    let login_context = use_context::<LoginContext>().expect("no context found");
-    let history = use_history().unwrap();
+    let login_context = use_context::<LoginContext>()
+        .expect("The login context is missing. Use this component inside a LoginContext element.");
+    let history = use_history()
+        .expect("The history context is missing. Use this component in a BrowserRouter element.");
 
     let on_logout_click = {
         let login_context = login_context.clone();
@@ -81,17 +59,6 @@ fn navigation_bar() -> Html {
     }
 }
 
-fn switch(routes: &Route) -> Html {
-    match routes {
-        Route::HomeScreen => html! { <HomeScreen/> },
-        Route::Login => html! { <Login/> },
-        Route::Leaderboard => html! { <Leaderboard/> },
-        Route::AIUpload => html! { <AIUpload/> },
-        Route::Registration => html! { <Registration/> },
-        _ => html! { <PageNotFound/> },
-    }
-}
-
 #[function_component(App)]
 fn app() -> Html {
     let login_state = use_reducer(|| LoginState::Checking);
@@ -103,10 +70,7 @@ fn app() -> Html {
                     let response = match Request::get("/api/login_status").send().await {
                         Ok(response) => Some(response),
                         Err(err) => {
-                            let window = gloo_utils::window();
-                            window
-                                .alert_with_message(&format!("Error checking login: {}", err))
-                                .unwrap();
+                            alert_message(&format!("Error checking login: {}", err));
                             login_state.dispatch(LoginAction::Logout);
                             None
                         }
@@ -116,10 +80,7 @@ fn app() -> Html {
                         Some(resp) => login_state.dispatch(match resp.json().await {
                             Ok(state) => state,
                             Err(err) => {
-                                let window = gloo_utils::window();
-                                window
-                                    .alert_with_message(&format!("Error checking login: {}", err))
-                                    .unwrap();
+                                alert_message(&format!("Error checking login: {}", err));
                                 LoginAction::Logout
                             }
                         }),

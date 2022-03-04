@@ -32,7 +32,7 @@ pub fn registration_screen() -> Html {
     let username = use_state(|| "".to_string());
     let password = use_state(|| "".to_string());
     let password_confirm = use_state(|| "".to_string());
-    let history = use_history().expect("???");
+    let history = use_history().expect("The history context is missing. Use this component in a BrowserRouter element.");
 
     let on_email_change = {
         let email = email.clone();

@@ -32,7 +32,7 @@ pub fn login_screen() -> Html {
     let username = use_state(|| "".to_string());
     let password = use_state(|| "".to_string());
     let login_context = use_context::<LoginContext>().expect("no context found");
-    let history = use_history().expect("???");
+    let history = use_history().expect("The history context is missing. Use this component in a BrowserRouter element.");
 
     let on_username_change = {
         let username = username.clone();

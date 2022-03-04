@@ -65,7 +65,7 @@ fn submit_ai(ai: &AiSubmitRequest, history: AnyHistory) {
 #[function_component(TypeInAITab)]
 fn type_in_ai_tab() -> Html {
     let code = use_state(|| "".to_string());
-    let history = use_history().expect("???");
+    let history = use_history().expect("The history context is missing. Use this component in a BrowserRouter element.");
 
     let on_code_change = {
         let code = code.clone();
@@ -97,7 +97,7 @@ fn type_in_ai_tab() -> Html {
 #[function_component(LoadPastebinAITab)]
 fn load_pastebin_ai_tab() -> Html {
     let pastebin_key = use_state(|| "".to_string());
-    let history = use_history().expect("???");
+    let history = use_history().expect("The history context is missing. Use this component in a BrowserRouter element.");
 
     let on_pastebin_key_change = {
         let pastebin_key = pastebin_key.clone();
@@ -111,7 +111,10 @@ fn load_pastebin_ai_tab() -> Html {
         let pastebin_key = pastebin_key.clone();
         Callback::from(move |_| {
             let history = history.clone();
-            submit_ai(&AiSubmitRequest::PastebinKey(pastebin_key.to_string()), history);
+            submit_ai(
+                &AiSubmitRequest::PastebinKey(pastebin_key.to_string()),
+                history,
+            );
         })
     };
 
@@ -130,7 +133,7 @@ fn load_pastebin_ai_tab() -> Html {
 fn load_gist_ai_tab() -> Html {
     let gist_username = use_state(|| "".to_string());
     let gist_hash = use_state(|| "".to_string());
-    let history = use_history().expect("???");
+    let history = use_history().expect("The history context is missing. Use this component in a BrowserRouter element.");
 
     let on_gist_username_change = {
         let gist_username = gist_username.clone();
@@ -153,7 +156,13 @@ fn load_gist_ai_tab() -> Html {
         let gist_hash = gist_hash.clone();
         Callback::from(move |_| {
             let history = history.clone();
-            submit_ai(&AiSubmitRequest::Gist {username: gist_username.to_string(), hash: gist_hash.to_string()}, history);
+            submit_ai(
+                &AiSubmitRequest::Gist {
+                    username: gist_username.to_string(),
+                    hash: gist_hash.to_string(),
+                },
+                history,
+            );
         })
     };
 
