@@ -48,21 +48,20 @@ struct RegisterInfo {
     email: String,
 }
 
-pub fn create_user<'a>(
+fn create_user(
     conn: &PgConnection,
-    username: &'a str,
-    password: &'a str,
-    email: &'a str,
+    register_info: RegisterInfo,
     config: &Config,
 ) -> Result<User, String> {
     let mut salt = vec![0u8; 64];
     OsRng.fill_bytes(&mut salt);
 
-    let hashed_password = argon2::hash_encoded(password.as_bytes(), &salt, config).unwrap();
+    let hashed_password =
+        argon2::hash_encoded(register_info.password.as_bytes(), &salt, config).unwrap();
     let new_user = NewUser {
-        username,
+        username: &register_info.username,
         password: &hashed_password,
-        email,
+        email: &register_info.email,
     };
 
     match diesel::insert_into(users::table)
@@ -82,32 +81,20 @@ enum RegisterResult {
 }
 
 #[post("/register")]
-async fn register(
-    info: web::Json<RegisterInfo>,
-    req: HttpRequest,
-    state: web::Data<AppState<'_>>,
-) -> impl Responder {
+async fn register(info: web::Json<RegisterInfo>, state: web::Data<AppState<'_>>) -> impl Responder {
     let conn = state.pool.get().expect("Could not connect to the database");
     println!(
         "Register request from {} with password {} and mail {}",
         info.username, info.password, info.email
     );
-    match create_user(
-        &conn,
-        &info.username,
-        &info.password,
-        &info.email,
-        &state.argon2_config,
-    ) {
+    match create_user(&conn, info.into_inner(), &state.argon2_config) {
         Ok(user) => {
             println!("User registered with id {}", user.id);
-            web::Json(RegisterResult::Successful).respond_to(&req)
+            HttpResponse::Ok().json(RegisterResult::Successful)
         }
         Err(message) => {
             println!("Registration failed: {}", &message);
-            let mut response = web::Json(RegisterResult::Failed(message)).respond_to(&req);
-            *response.status_mut() = actix_web::http::StatusCode::BAD_REQUEST;
-            response
+            HttpResponse::BadRequest().json(RegisterResult::Failed(message))
         }
     }
 }
@@ -126,11 +113,7 @@ enum LoginResult {
 }
 
 #[post("/login")]
-async fn login(
-    info: web::Json<LoginInfo>,
-    req: HttpRequest,
-    state: web::Data<AppState<'_>>,
-) -> impl Responder {
+async fn login(info: web::Json<LoginInfo>, state: web::Data<AppState<'_>>) -> impl Responder {
     use self::schema::users::dsl::*;
     let conn = state.pool.get().expect("Could not connect to the database");
     let matching_users = users
@@ -142,12 +125,9 @@ async fn login(
         info.username, info.password
     );
     if matching_users.is_empty() {
-        let mut response = web::Json(LoginResult::InvalidLogin {
+        HttpResponse::Unauthorized().json(LoginResult::InvalidLogin {
             message: "Invalid username or password".to_string(),
         })
-        .respond_to(&req);
-        *response.status_mut() = actix_web::http::StatusCode::UNAUTHORIZED;
-        response
     } else if matching_users.len() > 1 {
         panic!("Found multiple matching usernames!")
     } else {
@@ -165,26 +145,19 @@ async fn login(
                 .expect("Couldn't access the token storage")
                 .insert(token.clone(), matching_user.id);
             println!("Saved token {} for user id {}.", &token, matching_user.id);
-            let mut response = web::Json(LoginResult::ValidLogin {
-                username: matching_user.username.to_string(),
-                user_id: matching_user.id,
-            })
-            .respond_to(&req);
-            response
-                .add_cookie(
-                    &Cookie::build(AUTH_COOKIE_NAME, token)
-                        .max_age(Duration::days(31))
-                        .finish(),
-                )
-                .expect("Could not build a valid cookie");
-            response
+            let cookie = Cookie::build(AUTH_COOKIE_NAME, token)
+                .max_age(Duration::days(31))
+                .finish();
+            HttpResponse::Ok()
+                .cookie(cookie)
+                .json(LoginResult::ValidLogin {
+                    username: matching_user.username.to_string(),
+                    user_id: matching_user.id,
+                })
         } else {
-            let mut response = web::Json(LoginResult::InvalidLogin {
+            HttpResponse::Unauthorized().json(LoginResult::InvalidLogin {
                 message: "Invalid username or password".to_string(),
             })
-            .respond_to(&req);
-            *response.status_mut() = actix_web::http::StatusCode::UNAUTHORIZED;
-            response
         }
     }
 }
@@ -209,13 +182,9 @@ async fn login_status(req: HttpRequest, state: web::Data<AppState<'_>>) -> impl 
 
 #[post("/logout")]
 async fn logout() -> impl (Responder) {
-    HttpResponse::Ok()
-        .cookie(
-            Cookie::build(AUTH_COOKIE_NAME, "")
-                .max_age(Duration::ZERO)
-                .finish(),
-        )
-        .body("Logged out")
+    let mut cookie = Cookie::build(AUTH_COOKIE_NAME, "").finish();
+    cookie.make_removal();
+    HttpResponse::Ok().cookie(cookie).body("Logged out")
 }
 
 fn get_current_user(req: &HttpRequest, state: &web::Data<AppState<'_>>) -> Option<Box<User>> {
@@ -306,10 +275,8 @@ async fn submit_ai(
     // Authenticate the user
     let user = match get_current_user(&req, &state) {
         None => {
-            let mut response =
-                web::Json(AiResult::Failed("You are not logged in.".to_string())).respond_to(&req);
-            *response.status_mut() = actix_web::http::StatusCode::UNAUTHORIZED;
-            return response;
+            return HttpResponse::Unauthorized()
+                .json(AiResult::Failed("You are not logged in.".to_string()));
         }
         Some(user) => user,
     };
@@ -321,23 +288,17 @@ async fn submit_ai(
         AiInfo::Ai(c) => c,
         AiInfo::PastebinKey(key) => match fetch_ai_from_pastebin(&key).await {
             None => {
-                let mut response = web::Json(AiResult::Failed(
+                return HttpResponse::ServiceUnavailable().json(AiResult::Failed(
                     "Could not fetch code from pastebin.".to_string(),
-                ))
-                .respond_to(&req);
-                *response.status_mut() = actix_web::http::StatusCode::SERVICE_UNAVAILABLE;
-                return response;
+                ));
             }
             Some(c) => c,
         },
         AiInfo::Gist { username, hash } => match fetch_ai_from_gist(&username, &hash).await {
             None => {
-                let mut response = web::Json(AiResult::Failed(
+                return HttpResponse::ServiceUnavailable().json(AiResult::Failed(
                     "Could not fetch code from gist.".to_string(),
-                ))
-                .respond_to(&req);
-                *response.status_mut() = actix_web::http::StatusCode::SERVICE_UNAVAILABLE;
-                return response;
+                ));
             }
             Some(c) => c,
         },
@@ -354,13 +315,11 @@ async fn submit_ai(
     {
         Ok(ai) => {
             println!("AI created with id {}", ai.id);
-            web::Json(AiResult::Successful).respond_to(&req)
+            HttpResponse::Ok().json(AiResult::Successful)
         }
         Err(err) => {
             println!("Ai submit failed: {}", &err);
-            let mut response = web::Json(AiResult::Failed(err.to_string())).respond_to(&req);
-            *response.status_mut() = actix_web::http::StatusCode::BAD_REQUEST;
-            response
+            HttpResponse::BadRequest().json(AiResult::Failed(err.to_string()))
         }
     }
 }
