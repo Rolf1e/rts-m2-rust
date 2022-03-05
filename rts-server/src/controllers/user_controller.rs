@@ -10,7 +10,8 @@ use rand::RngCore;
 use crate::dto::input::{LoginInfo, RegisterInfo};
 use crate::dto::output::{LoginResult, LoginState, RegisterResult};
 use crate::schema::*;
-use crate::{models::*, AppState};
+use crate::models::user::*; 
+use crate::AppState;
 
 const AUTH_COOKIE_NAME: &str = "_token";
 

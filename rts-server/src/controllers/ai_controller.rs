@@ -6,7 +6,8 @@ use diesel::prelude::*;
 
 use crate::dto::input::AiInfo;
 use crate::dto::output::AiResult;
-use crate::{AppState, models::*};
+use crate::AppState;
+use crate::models::ai::*;
 use crate::schema::*;
 
 use super::user_controller::get_current_user;

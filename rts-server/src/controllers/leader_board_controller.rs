@@ -5,7 +5,7 @@ use actix_web::{Responder, web};
 
 use crate::AppState;
 
-use crate::models::*;
+use crate::models::user::*;
 use crate::schema::*;
 
 

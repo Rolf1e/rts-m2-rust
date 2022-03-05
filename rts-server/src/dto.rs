@@ -2,6 +2,22 @@ pub mod output {
 
     use serde::{Serialize, Deserialize};
 
+    // === Leader Board ===
+
+    #[derive(Serialize)]
+    pub struct LeaderBoardResult {
+        players: (PlayerResult, PlayerResult),
+
+    }
+
+    #[derive(Serialize)]
+    pub struct PlayerResult {
+        pub name: String,
+    }
+
+
+    // ===  User ===
+    
     #[derive(Serialize)]
     #[serde(untagged)]
     pub enum RegisterResult {
@@ -23,6 +39,8 @@ pub mod output {
         LoggedIn { username: String, user_id: i32 },
     }
 
+    // === AI ===
+
     #[derive(Serialize)]
     #[serde(untagged)]
     pub enum AiResult {
@@ -35,6 +53,8 @@ pub mod input {
 
     use serde::Deserialize;
 
+    // === User ===
+    
     #[derive(Deserialize)]
     pub struct LoginInfo {
         pub username: String,
@@ -47,6 +67,8 @@ pub mod input {
         pub password: String,
         pub email: String,
     }
+
+    // === AI ===
 
     #[derive(Deserialize, Debug)]
     pub enum AiInfo {
