@@ -15,6 +15,18 @@ table! {
     }
 }
 
-joinable!(ais -> users (owner));
+table! {
+    leader_board (id) {
+        id -> Int4,
+        rank -> Int4,
+        player -> Int4,
+        score -> Int4,
+        wins -> Int4,
+        losses -> Int4,
+    }
+}
 
-allow_tables_to_appear_in_same_query!(users, ais,);
+joinable!(ais -> users (owner));
+joinable!(leader_board -> users (player));
+
+allow_tables_to_appear_in_same_query!(users, ais, leader_board, );

@@ -11,6 +11,7 @@ use crate::contexts::*;
 use crate::routes::*;
 use crate::utils::alert_message;
 
+
 #[function_component(NavigationBar)]
 fn navigation_bar() -> Html {
     let login_context = use_context::<LoginContext>()

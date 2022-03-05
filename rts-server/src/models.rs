@@ -35,3 +35,29 @@ pub mod ai {
         pub code: &'a str,
     }
 }
+
+pub mod leader_board {
+    use crate::schema::leader_board;
+
+    #[derive(Queryable)]
+    pub struct Rank {
+        pub id: i32,
+        pub rank: i32,
+        pub player: i32,
+        pub score: i32,
+        pub wins: i32,
+        pub losses: i32,
+    }
+
+    #[derive(Insertable)]
+    #[table_name = "leader_board"]
+    pub struct NewRank {
+        pub rank: i32,
+        pub player: i32,
+        pub score: i32,
+        pub wins: i32,
+        pub losses: i32,
+    }
+
+
+}
