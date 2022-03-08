@@ -21,7 +21,7 @@ pub struct Unit {
     skills: Vec<Skill>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum UnitType {
     Classic,
 }

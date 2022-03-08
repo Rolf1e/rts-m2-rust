@@ -9,6 +9,8 @@ use std::sync::{Arc, Mutex};
 use crate::entity::game_actions::Action;
 use crate::exceptions::RtsException;
 
+/*
+
 type InnerMap<'p> = Arc<Mutex<HashMap<u64, &'p PyModule>>>;
 
 pub struct PythonCodeExecutor<'p> {
@@ -61,7 +63,7 @@ impl<'p> PythonCodeExecutor<'p> {
     }
 }
 
-fn compile_python_code<'p>(
+pub fn compile_python_code<'p>(
     py: Python<'p>,
     ai_code: &str,
     hash: &u64,
@@ -69,7 +71,9 @@ fn compile_python_code<'p>(
     PyModule::from_code(py, ai_code, &format!("{}.py", hash), &format!("{}", hash))
 }
 
-fn calculate_hash<T: Hash>(t: &T) -> u64 {
+*/
+
+pub fn calculate_hash<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
     t.hash(&mut s);
     s.finish()

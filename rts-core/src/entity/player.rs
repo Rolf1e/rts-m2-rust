@@ -4,7 +4,7 @@ use crate::exceptions::RtsException;
 use crate::entity::game_actions::Action;
 
 pub trait TurnStrategyRequester {
-    fn request(&self) -> Result<Action, RtsException>;
+    fn request(&self) -> Result<Vec<Action>, RtsException>;
 }
 
 pub type AICode = String;
@@ -32,7 +32,7 @@ where
         }
     }
 
-    pub fn request(&self) -> Result<Action, RtsException> {
+    pub fn request(&self) -> Result<Vec<Action>, RtsException> {
         self.turn_strategy_requester.request()
     }
 
@@ -90,8 +90,8 @@ mod test_wallet {
 
     pub struct TestTurnStrategyRequester;
     impl TurnStrategyRequester for TestTurnStrategyRequester {
-        fn request(&self) -> Result<Action, RtsException> {
-            Ok(Action::GiveMoneyBatch)
+        fn request(&self) -> Result<Vec<Action>, RtsException> {
+            Ok(vec![Action::GiveMoneyBatch])
         }
     }
 
