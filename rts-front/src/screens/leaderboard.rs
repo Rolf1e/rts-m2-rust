@@ -3,7 +3,6 @@ use std::fmt::Display;
 use regex::Regex;
 use reqwasm::http::{Request, Response};
 use serde::Deserialize;
-use weblog::console_log;
 use yew::prelude::*;
 
 use crate::utils::alert_message;
@@ -12,19 +11,18 @@ const LEADER_BOARD_ROUTE: &str = "/api/leaderboard/{max}";
 
 #[derive(Clone, PartialEq, Deserialize)]
 struct MatchRow {
-    rank: i32,
-    player: String,
-    score: i32,
-    wins: i32,
-    losses: i32,
+    winner: String,
+    looser: String,
+    score_winner: i32,
+    score_looser: i32,
 }
 
 impl Display for MatchRow {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}. | {} | {} | w: {} - l: {}",
-            self.rank, self.player, self.score, self.wins, self.losses
+            " | {} | {} | w: {} - l: {}",
+            self.winner, self.looser, self.score_winner, self.score_looser
         )
     }
 }
@@ -34,7 +32,7 @@ struct MatchRowListProps {
     matchs: Vec<MatchRow>,
 }
 
-#[function_component(LeaderBoard)]
+#[function_component(MatchList)]
 fn leader_board(MatchRowListProps { matchs }: &MatchRowListProps) -> Html {
     matchs
         .iter()
@@ -65,7 +63,7 @@ pub fn leaderboard() -> Html {
 
     html! {
         <ul>
-            <LeaderBoard matchs={ (*leader_board).clone() } />
+            <MatchList matchs={ (*leader_board).clone() } />
         </ul>
     }
 }
