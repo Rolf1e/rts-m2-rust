@@ -36,27 +36,25 @@ pub mod ai {
     }
 }
 
-pub mod leader_board {
-    use crate::schema::leader_board;
+pub mod game {
+    use crate::schema::matchs;
 
-    #[derive(Queryable)]
-    pub struct Rank {
+    #[derive(Debug, Queryable)]
+    pub struct MatchDo {
         pub id: i32,
-        pub rank: i32,
-        pub player: i32,
-        pub score: i32,
-        pub wins: i32,
-        pub losses: i32,
+        pub winner: i32,
+        pub looser: i32,
+        pub score_winner: i32,
+        pub score_looser: i32,
     }
 
     #[derive(Insertable)]
-    #[table_name = "leader_board"]
-    pub struct NewRank {
-        pub rank: i32,
-        pub player: i32,
-        pub score: i32,
-        pub wins: i32,
-        pub losses: i32,
+    #[table_name = "matchs"]
+    pub struct NewMatchDo {
+        pub winner: i32,
+        pub looser: i32,
+        pub score_winner: i32,
+        pub score_looser: i32,
     }
 
 

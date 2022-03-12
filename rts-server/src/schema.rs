@@ -16,17 +16,16 @@ table! {
 }
 
 table! {
-    leader_board (id) {
+    matchs (id) {
         id -> Int4,
-        rank -> Int4,
-        player -> Int4,
-        score -> Int4,
-        wins -> Int4,
-        losses -> Int4,
+        winner -> Int4,
+        looser -> Int4,
+        score_winner -> Int4,
+        score_looser -> Int4,
     }
 }
 
 joinable!(ais -> users (owner));
-joinable!(leader_board -> users (player));
+joinable!(matchs -> users (winner));
 
-allow_tables_to_appear_in_same_query!(users, ais, leader_board, );
+allow_tables_to_appear_in_same_query!(users, ais, matchs, );

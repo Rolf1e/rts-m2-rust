@@ -1,23 +1,19 @@
 pub mod output {
 
-    use serde::{Serialize, Deserialize};
+    use serde::{Deserialize, Serialize};
 
     // === Leader Board ===
 
     #[derive(Serialize)]
-    pub struct LeaderBoardResult {
-        players: (PlayerResult, PlayerResult),
-
+    pub struct MatchResult {
+        pub winner: String,
+        pub looser: String,
+        pub score_winner: i32,
+        pub score_looser: i32,
     }
-
-    #[derive(Serialize)]
-    pub struct PlayerResult {
-        pub name: String,
-    }
-
 
     // ===  User ===
-    
+
     #[derive(Serialize)]
     #[serde(untagged)]
     pub enum RegisterResult {
@@ -54,7 +50,7 @@ pub mod input {
     use serde::Deserialize;
 
     // === User ===
-    
+
     #[derive(Deserialize)]
     pub struct LoginInfo {
         pub username: String,
@@ -76,4 +72,13 @@ pub mod input {
         PastebinKey(String),
         Gist { username: String, hash: String },
     }
+
+    #[derive(Deserialize)]
+    pub struct NewMatchDto {
+        pub winner_id: i32,
+        pub looser_id: i32,
+        pub score_winner: i32,
+        pub score_looser: i32,
+    }
+
 }
