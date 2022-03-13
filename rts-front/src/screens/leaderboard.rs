@@ -3,6 +3,7 @@ use std::fmt::Display;
 use regex::Regex;
 use reqwasm::http::{Request, Response};
 use serde::Deserialize;
+use weblog::console_log;
 use yew::prelude::*;
 
 use crate::utils::alert_message;
@@ -51,14 +52,17 @@ pub fn leaderboard() -> Html {
     {
         let leader_board = leader_board.clone();
 
-        use_effect(move || {
-            wasm_bindgen_futures::spawn_local(async move {
-                let fetched_board = featch_leader_board().await;
-                leader_board.set(fetched_board);
-            });
+        use_effect_with_deps(
+            move |_| {
+                wasm_bindgen_futures::spawn_local(async move {
+                    let fetched_board = featch_leader_board().await;
+                    leader_board.set(fetched_board);
+                });
 
-            || ()
-        });
+                || ()
+            },
+            (),
+        );
     }
 
     html! {

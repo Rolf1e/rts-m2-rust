@@ -50,19 +50,15 @@ pub mod game {
 
     use diesel::sql_types::{Integer, Text};
 
-    #[derive(QueryableByName)]
+    #[derive(Debug, QueryableByName)]
     pub struct LeaderBoardRowDo {
         #[sql_type = "Text"]
-        #[diesel(deserialize_as = "String")]
         pub username: String,
         #[sql_type = "Integer"]
-        #[diesel(deserialize_as = "i32")]
         pub wins: i32,
         #[sql_type = "Integer"]
-        #[diesel(deserialize_as = "i32")]
         pub looses: i32,
         #[sql_type = "Integer"]
-        #[diesel(deserialize_as = "i32")]
         pub score: i32,
     }
 
