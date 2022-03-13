@@ -7,9 +7,9 @@ CREATE TABLE MATCHS(
   score_looser INT NOT NULL
 );
 
-INSERT INTO users (username, password, email) VALUES ('rolfie', 'rolfie', '' );
-INSERT INTO users (username, password, email) VALUES ('tigran', 'tigran', '' );
-INSERT INTO users (username, password, email) VALUES ('antoine', 'antoine', '' );
+INSERT INTO users (username, password, email) VALUES ('rolfie', 'rolfie', 'a' );
+INSERT INTO users (username, password, email) VALUES ('tigran', 'tigran', 'b' );
+INSERT INTO users (username, password, email) VALUES ('antoine', 'antoine', 'c' );
 INSERT INTO matchs (winner, looser, score_winner, score_looser) VALUES (1, 1, 100, 99);
 INSERT INTO matchs (winner, looser, score_winner, score_looser) VALUES (2, 1, 120, 99);
 INSERT INTO matchs (winner, looser, score_winner, score_looser) VALUES (1, 2, 120, 99);
