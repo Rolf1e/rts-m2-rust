@@ -4,7 +4,7 @@ use actix_web::{web, Responder};
 use diesel::prelude::*;
 
 use crate::dto::input::NewMatchDto;
-use crate::dto::output::MatchResult;
+use crate::dto::output::LeaderBoardDto;
 use crate::models::game::*;
 use crate::schema::*;
 
@@ -47,10 +47,25 @@ pub async fn leaderboard(state: web::Data<AppState<'_>>, max: web::Path<i32>) ->
         .get()
         .expect("Failed to acquire connexion when retrieving leader board");
 
-    let leader_board = matchs::table
-        .limit(max)
-        .load::<MatchDo>(&conn)
-        .map(|ranks| transform_result(&ranks));
+    // let winners = matchs
+    // .select((winner, sum(winner), sum(score_winner)))
+    // .group_by(winner);
+
+    let leader_board = diesel::sql_query(
+        "SELECT username, wins, looses, score_wins - score_looses AS score
+    FROM (SELECT winner AS player, COUNT(winner) AS wins, SUM(score_winner) AS score_wins
+    FROM matchs
+    GROUP BY winner) as winners
+    JOIN (
+    SELECT looser AS player, COUNT(looser) AS looses, SUM(score_looser) AS score_looses
+    FROM matchs
+    GROUP BY looser) as loosers
+    ON winners.player = loosers.player
+    JOIN users ON users.id = winners.player;",
+        //
+    )
+    .load::<LeaderBoardRowDo>(&conn)
+    .map(transform_to_dto);
 
     match leader_board {
         Ok(board) => HttpResponse::Ok().json(board),
@@ -58,14 +73,14 @@ pub async fn leaderboard(state: web::Data<AppState<'_>>, max: web::Path<i32>) ->
     }
 }
 
-fn transform_result(matchs: &[MatchDo]) -> Vec<MatchResult> {
-    matchs
+fn transform_to_dto(leader_board: Vec<LeaderBoardRowDo>) -> Vec<LeaderBoardDto> {
+    leader_board
         .iter()
-        .map(|m| MatchResult {
-            winner: m.winner.to_string(), // TODO replace with real names
-            looser: m.looser.to_string(),
-            score_winner: m.score_winner,
-            score_looser: m.score_looser,
+        .map(|row| LeaderBoardDto {
+            username: row.username.clone(),
+            score: row.score,
+            wins: row.wins,
+            looses: row.looses,
         })
         .collect()
 }

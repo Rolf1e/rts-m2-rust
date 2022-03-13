@@ -5,11 +5,11 @@ pub mod output {
     // === Leader Board ===
 
     #[derive(Serialize)]
-    pub struct MatchResult {
-        pub winner: String,
-        pub looser: String,
-        pub score_winner: i32,
-        pub score_looser: i32,
+    pub struct LeaderBoardDto {
+        pub username: String,
+        pub score: i32,
+        pub wins: i32,
+        pub looses: i32,
     }
 
     // ===  User ===
