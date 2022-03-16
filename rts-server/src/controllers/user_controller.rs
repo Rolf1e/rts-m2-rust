@@ -49,7 +49,7 @@ pub async fn create_user(
         email: &register_info.email,
     };
 
-    UserRepository::insert_user(&pool, new_user).await
+    UserRepository::insert(&pool, new_user).await
 }
 
 #[post("/login")]
@@ -123,7 +123,7 @@ pub async fn logout() -> impl (Responder) {
 pub async fn get_current_user(
     req: &HttpRequest,
     state: &web::Data<AppState<'_>>,
-) -> Option<Box<User>> {
+) -> Option<Box<User>> { // @TODO remove this Box
     println!("Fetching the user from the cookies");
     // Read the authentication cookie
     let auth_token = match req.cookie(AUTH_COOKIE_NAME) {

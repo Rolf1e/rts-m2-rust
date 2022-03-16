@@ -1,14 +1,10 @@
-
-use actix_web::{
-    post, web, HttpRequest, HttpResponse, Responder,
-};
-use diesel::prelude::*;
+use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
 
 use crate::dto::input::AiInfo;
 use crate::dto::output::AiResult;
-use crate::AppState;
 use crate::models::ai::*;
-use crate::schema::*;
+use crate::repositories::ai_repo::AiRepository;
+use crate::AppState;
 
 use super::user_controller::get_current_user;
 
@@ -75,17 +71,16 @@ pub async fn submit_ai(
         },
     };
 
-    let conn = state.pool.get().expect("Could not connect to the database");
     let new_ai = NewAi {
         owner: user.id,
         code: &code,
     };
-    match diesel::insert_into(ais::table)
-        .values(&new_ai)
-        .get_result::<AI>(&conn)
-    {
-        Ok(ai) => {
-            println!("AI created with id {}", ai.id);
+
+    let owner = user.id;
+
+    match AiRepository::insert(&state.pg_pool, new_ai).await {
+        Ok(_) => {
+            println!("Create AI for user: {}", owner);
             HttpResponse::Ok().json(AiResult::Successful)
         }
         Err(err) => {

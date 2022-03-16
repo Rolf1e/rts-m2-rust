@@ -1,34 +1,19 @@
 use crate::AppState;
 use actix_web::{get, post, HttpResponse};
 use actix_web::{web, Responder};
-use diesel::pg::Pg;
-use diesel::prelude::*;
 
 use crate::dto::input::NewMatchDto;
 use crate::dto::output::LeaderBoardDto;
 use crate::models::game::*;
-use crate::schema::*;
 
 #[post("/leaderboard")]
 pub async fn insert_new_match(
     state: web::Data<AppState<'_>>,
     new_match_dto: web::Json<NewMatchDto>,
 ) -> impl Responder {
-    use crate::models::game::MatchDo;
-    let conn = state
-        .pool
-        .get()
-        .expect("Failed to acquire connexion when retrieving leader board");
-
     let dto = new_match_dto.into_inner();
-    let insert_result = diesel::insert_into(matchs::table)
-        .values(prepare_dto_for_insert(dto))
-        .get_result::<MatchDo>(&conn);
 
-    match insert_result {
-        Ok(_) => HttpResponse::Ok().body("Successfuly register new match !"),
-        Err(_) => HttpResponse::InternalServerError().body("Failed to register new match :("),
-    }
+    HttpResponse::InternalServerError().body("todo !")
 }
 
 fn prepare_dto_for_insert(dto: NewMatchDto) -> NewMatchDo {

@@ -34,7 +34,7 @@ impl UserRepository {
             })
     }
 
-    pub async fn insert_user<'a>(
+    pub async fn insert<'a>( // @TODO remove this lifetime
         pool: &PgPool,
         user: NewUser<'a>,
     ) -> Result<(), WebServerException> {
