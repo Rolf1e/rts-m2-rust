@@ -33,31 +33,30 @@ pub async fn insert_new_match(
 
 fn prepare_dto_for_insert(dto: NewMatchDto) -> NewMatchDo {
     NewMatchDo {
-        winner: dto.winner_id,
-        looser: dto.looser_id,
-        score_winner: dto.score_winner,
-        score_looser: dto.score_looser,
+        game: dto.game,
+        player: dto.player,
+        score: dto.score,
     }
 }
 
 #[get("/leaderboard/{max}")]
 pub async fn leaderboard(state: web::Data<AppState<'_>>, max: web::Path<i32>) -> impl Responder {
     let _max: i64 = max.abs().into();
-    let conn = state
-        .pool
-        .get()
-        .expect("Failed to acquire connexion when retrieving leader board");
 
-    let query = diesel::sql_query(
-        "SELECT username, wins, looses, score_wins - score_looses AS score
-    FROM (SELECT winner AS player, COUNT(winner) AS wins, SUM(score_winner) AS score_wins FROM matchs GROUP BY winner) as winners
-    JOIN (SELECT looser AS player, COUNT(looser) AS looses, SUM(score_looser) AS score_looses FROM matchs GROUP BY looser) as loosers
-    ON winners.player = loosers.player
-    JOIN users ON users.id = winners.player",
-    );
-
-    println!("{}", diesel::debug_query::<Pg,_>(&query).to_string());
-    let leader_board = query.load::<LeaderBoardRowDo>(&conn).map(transform_to_dto);
+    let leader_board = sqlx::query_as::<_, LeaderBoardRowDo>(
+        "SELECT (SELECT username
+                    FROM users
+                    WHERE users.id = games.player) AS name,
+                   SUM(games.score)                AS total_score
+            FROM (SELECT player, MAX(SCORE) AS score
+                  FROM matchs
+                  GROUP BY 1, matchs.game) AS games
+            GROUP BY 1
+            ORDER BY total_score DESC",
+    )
+    .fetch_all(&state.pg_pool)
+    .await
+    .map(transform_to_dto);
 
     match leader_board {
         Ok(board) => {
@@ -69,13 +68,14 @@ pub async fn leaderboard(state: web::Data<AppState<'_>>, max: web::Path<i32>) ->
 }
 
 fn transform_to_dto(leader_board: Vec<LeaderBoardRowDo>) -> Vec<LeaderBoardDto> {
+    println!("{:?}", leader_board);
     leader_board
         .iter()
         .map(|row| LeaderBoardDto {
-            username: row.username.clone(),
-            score: row.score,
-            wins: row.wins,
-            looses: row.looses,
+            username: row.name.clone(),
+            score: row.total_score,
+            wins: 0,
+            looses: 0,
         })
         .collect()
 }

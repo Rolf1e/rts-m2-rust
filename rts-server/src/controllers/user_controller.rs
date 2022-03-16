@@ -2,74 +2,64 @@ use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
 use argon2::{self, Config};
 use cookie::time::Duration;
 use cookie::Cookie;
-use diesel::pg::PgConnection;
-use diesel::prelude::*;
 use rand::rngs::OsRng;
 use rand::RngCore;
+use sqlx::PgPool;
 
 use crate::dto::input::{LoginInfo, RegisterInfo};
 use crate::dto::output::{LoginResult, LoginState, RegisterResult};
-use crate::schema::*;
-use crate::models::user::*; 
+use crate::exceptions::WebServerException;
+use crate::models::user::*;
+use crate::repositories::user_repo::UserRepository;
 use crate::AppState;
 
 const AUTH_COOKIE_NAME: &str = "_token";
-
-pub fn create_user(
-    conn: &PgConnection,
-    register_info: RegisterInfo,
-    config: &Config,
-) -> Result<User, String> {
-    let mut salt = vec![0u8; 64];
-    OsRng.fill_bytes(&mut salt);
-
-    let hashed_password =
-        argon2::hash_encoded(register_info.password.as_bytes(), &salt, config).unwrap();
-    let new_user = NewUser {
-        username: &register_info.username,
-        password: &hashed_password,
-        email: &register_info.email,
-    };
-
-    match diesel::insert_into(users::table)
-        .values(&new_user)
-        .get_result(conn)
-    {
-        Ok(user) => Ok(user),
-        Err(err) => Err(err.to_string()),
-    }
-}
 
 #[post("/register")]
 pub async fn register(
     info: web::Json<RegisterInfo>,
     state: web::Data<AppState<'_>>,
 ) -> impl Responder {
-    let conn = state.pool.get().expect("Could not connect to the database");
-    println!(
-        "Register request from {} with password {} and mail {}",
-        info.username, info.password, info.email
-    );
-    match create_user(&conn, info.into_inner(), &state.argon2_config) {
-        Ok(user) => {
-            println!("User registered with id {}", user.id);
+    let username = info.username.clone();
+    match create_user(&state.pg_pool, info.into_inner(), &state.argon2_config).await {
+        Ok(_) => {
+            println!("Register new user {}", username);
             HttpResponse::Ok().json(RegisterResult::Successful)
         }
         Err(message) => {
             println!("Registration failed: {}", &message);
-            HttpResponse::BadRequest().json(RegisterResult::Failed(message))
+            HttpResponse::BadRequest().json(RegisterResult::Failed(format!("{}", message)))
         }
     }
 }
 
+pub async fn create_user(
+    pool: &PgPool,
+    register_info: RegisterInfo,
+    config: &Config<'_>,
+) -> Result<(), WebServerException> {
+    let mut salt = vec![0u8; 64];
+    OsRng.fill_bytes(&mut salt);
+
+    let hashed_password = argon2::hash_encoded(register_info.password.as_bytes(), &salt, config)
+        .map_err(|_| WebServerException::HashPassword)?;
+    let new_user = NewUser {
+        username: &register_info.username,
+        password: &hashed_password,
+        email: &register_info.email,
+    };
+
+    UserRepository::insert_user(&pool, new_user).await
+}
+
 #[post("/login")]
 pub async fn login(info: web::Json<LoginInfo>, state: web::Data<AppState<'_>>) -> impl Responder {
-    use crate::schema::users::dsl::*;
-    let conn = state.pool.get().expect("Could not connect to the database");
-    let matching_users = users
-        .filter(username.eq(info.username.clone()))
-        .load::<User>(&conn)
-        .expect("Error loading users");
+    let matching_users = UserRepository::find_by_username(&state.pg_pool, &info.username).await;
+    if let Err(e) = matching_users {
+        return HttpResponse::InternalServerError().body(format!("{}", e));
+    }
+    let matching_users = matching_users.unwrap();
+
     println!(
         "Login request from {} with password {}",
         info.username, info.password
@@ -82,7 +72,7 @@ pub async fn login(info: web::Json<LoginInfo>, state: web::Data<AppState<'_>>) -
         panic!("Found multiple matching usernames!")
     } else {
         let matching_user = &matching_users[0];
-        println!("Found matching user {:?}", matching_user);
+        println!("Found matching user {:?}", matching_user); //@TODO remove to avoid login hash
         let is_valid =
             argon2::verify_encoded(&matching_user.password, info.password.as_bytes()).unwrap();
         if is_valid {
@@ -114,7 +104,7 @@ pub async fn login(info: web::Json<LoginInfo>, state: web::Data<AppState<'_>>) -
 
 #[get("/login_status")]
 pub async fn login_status(req: HttpRequest, state: web::Data<AppState<'_>>) -> impl Responder {
-    match get_current_user(&req, &state) {
+    match get_current_user(&req, &state).await {
         None => web::Json(LoginState::LoggedOut),
         Some(user) => web::Json(LoginState::LoggedIn {
             username: user.username,
@@ -130,8 +120,10 @@ pub async fn logout() -> impl (Responder) {
     HttpResponse::Ok().cookie(cookie).body("Logged out")
 }
 
-pub fn get_current_user(req: &HttpRequest, state: &web::Data<AppState<'_>>) -> Option<Box<User>> {
-    use crate::schema::users::dsl::*;
+pub async fn get_current_user(
+    req: &HttpRequest,
+    state: &web::Data<AppState<'_>>,
+) -> Option<Box<User>> {
     println!("Fetching the user from the cookies");
     // Read the authentication cookie
     let auth_token = match req.cookie(AUTH_COOKIE_NAME) {
@@ -156,11 +148,12 @@ pub fn get_current_user(req: &HttpRequest, state: &web::Data<AppState<'_>>) -> O
         Some(uid) => *uid,
     };
     // Find the user in the database
-    let conn = state.pool.get().expect("Could not connect to the database");
-    let matching_users = users
-        .filter(id.eq(user_id))
-        .load::<User>(&conn)
-        .expect("Error loading users");
+    let matching_users = UserRepository::find_by_id(&state.pg_pool, user_id).await;
+    if matching_users.is_err() {
+        return None;
+    }
+    let matching_users = matching_users.unwrap();
+
     if matching_users.is_empty() {
         panic!("Token is valid but the user was not found in the database!")
     } else if matching_users.len() > 1 {

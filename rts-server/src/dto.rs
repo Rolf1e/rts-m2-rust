@@ -75,10 +75,9 @@ pub mod input {
 
     #[derive(Deserialize)]
     pub struct NewMatchDto {
-        pub winner_id: i32,
-        pub looser_id: i32,
-        pub score_winner: i32,
-        pub score_looser: i32,
+        pub game: i32,
+        pub player: i32,
+        pub score: i32,
     }
 
 }

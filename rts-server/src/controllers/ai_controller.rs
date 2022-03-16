@@ -44,7 +44,7 @@ pub async fn submit_ai(
     info: web::Json<AiInfo>,
 ) -> impl (Responder) {
     // Authenticate the user
-    let user = match get_current_user(&req, &state) {
+    let user = match get_current_user(&req, &state).await {
         None => {
             return HttpResponse::Unauthorized()
                 .json(AiResult::Failed("You are not logged in.".to_string()));

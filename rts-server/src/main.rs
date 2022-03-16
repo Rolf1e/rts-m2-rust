@@ -5,12 +5,14 @@ pub mod controllers;
 pub mod dto;
 pub mod models;
 pub mod schema;
+pub mod repositories;
+pub mod exceptions;
 
+use crate::controllers::ai_controller::submit_ai;
+use crate::controllers::leader_board_controller::leaderboard;
+use crate::controllers::user_controller::{login, login_status, logout, register};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use crate::controllers::leader_board_controller::leaderboard;
-use crate::controllers::ai_controller::submit_ai;
-use crate::controllers::user_controller::{login, login_status, logout, register};
 
 use actix_files as fs;
 use actix_web::web::Data;
@@ -20,6 +22,7 @@ use diesel::pg::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use r2d2::Pool;
 
+use sqlx::postgres::{PgPool, PgPoolOptions};
 
 pub type PostgresPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -27,6 +30,14 @@ pub struct AppState<'a> {
     pool: PostgresPool,
     argon2_config: Config<'a>,
     tokens: Arc<RwLock<HashMap<String, i32>>>,
+    pg_pool: PgPool,
+}
+
+async fn create_pool(database_url: &str) -> PgPool {
+    PgPoolOptions::new()
+        .connect(&database_url)
+        .await
+        .expect(&format!("Failed to connect to database {}", &database_url))
 }
 
 #[actix_web::main]
@@ -40,16 +51,18 @@ async fn main() -> std::io::Result<()> {
     println!("Listening on {}", &listen_url);
 
     let pool = r2d2::Pool::builder()
-        .build(ConnectionManager::<PgConnection>::new(database_url))
+        .build(ConnectionManager::<PgConnection>::new(database_url.clone()))
         .expect("Could not build connection pool");
 
-    let tokens = Arc::new(RwLock::new(HashMap::new()));
+    let pg_pool = create_pool(&database_url).await;
 
+    let tokens = Arc::new(RwLock::new(HashMap::new()));
     HttpServer::new(move || {
         let app_state: Data<AppState> = Data::new(AppState {
             pool: pool.clone(),
             argon2_config: Config::default(),
             tokens: tokens.clone(),
+            pg_pool: pg_pool.clone(),
         });
 
         let api_scope = web::scope("/api")

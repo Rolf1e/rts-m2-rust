@@ -18,6 +18,8 @@ diesel = { version = "1.4", features = ["postgres", "r2d2",] }
 dotenv = "0.15"
 r2d2 = "0.8"
 
+sqlx = { version = "0.5", features = [ "runtime-actix-native-tls" , "postgres" ] }
+
 # Password hashing and encryption
 rust-argon2 = "1.0"
 rand = { version = "0.8", features = ["getrandom", ]}

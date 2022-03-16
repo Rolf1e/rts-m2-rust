@@ -1,7 +1,7 @@
 pub mod user {
     use crate::schema::users;
 
-    #[derive(Debug, Queryable, Clone)]
+    #[derive(Debug, Queryable, Clone, sqlx::FromRow)]
     pub struct User {
         pub id: i32,
         pub username: String,
@@ -9,7 +9,7 @@ pub mod user {
         pub email: String,
     }
 
-    #[derive(Insertable)]
+    #[derive(Debug, Insertable)]
     #[table_name = "users"]
     pub struct NewUser<'a> {
         pub username: &'a str,
@@ -42,32 +42,22 @@ pub mod game {
     #[derive(Debug, Queryable)]
     pub struct MatchDo {
         pub id: i32,
-        pub winner: i32,
-        pub looser: i32,
-        pub score_winner: i32,
-        pub score_looser: i32,
+        pub game: i32,
+        pub player: i32,
+        pub score: i32,
     }
 
-    use diesel::sql_types::{Integer, Text};
-
-    #[derive(Debug, QueryableByName)]
+    #[derive(Debug, sqlx::FromRow)]
     pub struct LeaderBoardRowDo {
-        #[sql_type = "Text"]
-        pub username: String,
-        #[sql_type = "Integer"]
-        pub wins: i32,
-        #[sql_type = "Integer"]
-        pub looses: i32,
-        #[sql_type = "Integer"]
-        pub score: i32,
+        pub name: String,
+        pub total_score: i32,
     }
 
     #[derive(Insertable)]
     #[table_name = "matchs"]
     pub struct NewMatchDo {
-        pub winner: i32,
-        pub looser: i32,
-        pub score_winner: i32,
-        pub score_looser: i32,
+        pub game: i32,
+        pub player: i32,
+        pub score: i32,
     }
 }
