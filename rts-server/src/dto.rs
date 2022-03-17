@@ -7,9 +7,9 @@ pub mod output {
     #[derive(Debug, Serialize)]
     pub struct LeaderBoardDto {
         pub username: String,
-        pub score: i32,
-        pub wins: i32,
-        pub looses: i32,
+        pub score: i64,
+        pub wins: i64,
+        pub looses: i64,
     }
 
     // ===  User ===

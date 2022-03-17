@@ -44,9 +44,10 @@ pub mod game {
     #[derive(Debug, sqlx::FromRow)]
     pub struct LeaderBoardRowDo {
         pub name: String,
-        pub total_score: i32,
+        pub total_score: i64,
     }
 
+    #[derive(Debug)]
     pub struct NewMatchDo {
         pub game: i32,
         pub player: i32,
