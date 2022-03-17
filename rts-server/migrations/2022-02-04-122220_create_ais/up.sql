@@ -1,5 +1,0 @@
-CREATE TABLE ais (
-  id SERIAL PRIMARY KEY,
-  owner INT REFERENCES users (id),
-  code VARCHAR NOT NULL
-);
