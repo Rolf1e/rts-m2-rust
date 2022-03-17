@@ -9,10 +9,10 @@ pub mod user {
     }
 
     #[derive(Debug)]
-    pub struct NewUser<'a> {
-        pub username: &'a str,
-        pub password: &'a str,
-        pub email: &'a str,
+    pub struct NewUser {
+        pub username: String,
+        pub password: String,
+        pub email: String,
     }
 }
 
@@ -25,9 +25,9 @@ pub mod ai {
     }
 
     #[derive(Debug)]
-    pub struct NewAi<'a> {
+    pub struct NewAi {
         pub owner: i32,
-        pub code: &'a str,
+        pub code: String,
     }
 }
 

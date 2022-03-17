@@ -44,12 +44,12 @@ pub async fn create_user(
     let hashed_password = argon2::hash_encoded(register_info.password.as_bytes(), &salt, config)
         .map_err(|_| WebServerException::HashPassword)?;
     let new_user = NewUser {
-        username: &register_info.username,
-        password: &hashed_password,
-        email: &register_info.email,
+        username: register_info.username,
+        password: hashed_password,
+        email: register_info.email,
     };
 
-    UserRepository::insert(&pool, new_user).await
+    UserRepository::insert(pool, new_user).await
 }
 
 #[post("/login")]
@@ -105,8 +105,8 @@ pub async fn login(info: web::Json<LoginInfo>, state: web::Data<AppState<'_>>) -
 #[get("/login_status")]
 pub async fn login_status(req: HttpRequest, state: web::Data<AppState<'_>>) -> impl Responder {
     match get_current_user(&req, &state).await {
-        None => web::Json(LoginState::LoggedOut),
-        Some(user) => web::Json(LoginState::LoggedIn {
+        Ok(None) | Err(_) => web::Json(LoginState::LoggedOut),
+        Ok(Some(user)) => web::Json(LoginState::LoggedIn {
             username: user.username,
             user_id: user.id,
         }),
@@ -123,42 +123,46 @@ pub async fn logout() -> impl (Responder) {
 pub async fn get_current_user(
     req: &HttpRequest,
     state: &web::Data<AppState<'_>>,
-) -> Option<Box<User>> { // @TODO remove this Box
+) -> Result<Option<User>, WebServerException> {
     println!("Fetching the user from the cookies");
-    // Read the authentication cookie
-    let auth_token = match req.cookie(AUTH_COOKIE_NAME) {
-        None => {
-            println!("Could not find the cookie in the headers");
-            return None;
-        }
-        Some(cookie) => cookie.value().to_string(),
+    let auth_token = if let Some(cookie) = req.cookie(AUTH_COOKIE_NAME) {
+        String::from(cookie.value())
+    } else {
+        println!("Could not find the cookie in the headers");
+        return Ok(None);
     };
+
     println!("Trying to find the user id for token {}", &auth_token);
-    // Try to find the token in the app state
-    let user_id = match state
+    let user_id = if let Some(uid) = state
         .tokens
         .read()
         .expect("Couldn't access the token storage")
         .get(&auth_token)
     {
-        None => {
-            println!("Could not find the token in the storage");
-            return None;
-        }
-        Some(uid) => *uid,
+        *uid
+    } else {
+        println!("Could not find the token in the storage");
+        return Ok(None);
     };
-    // Find the user in the database
+
+    println!("Trying to find user in database with uid {} ", user_id);
     let matching_users = UserRepository::find_by_id(&state.pg_pool, user_id).await;
     if matching_users.is_err() {
-        return None;
+        println!("Failed to find user with uid {} in database", user_id);
+        return Ok(None);
     }
+
     let matching_users = matching_users.unwrap();
 
     if matching_users.is_empty() {
-        panic!("Token is valid but the user was not found in the database!")
+        Err(WebServerException::User(
+            "Token is valid but the user was not found in the database!".to_string(),
+        ))
     } else if matching_users.len() > 1 {
-        panic!("Found multiple users with the given id!")
+        Err(WebServerException::User(
+            "Found multiple users with the given id!".to_string(),
+        ))
     } else {
-        Some(Box::new(matching_users[0].clone()))
+        Ok(Some(matching_users[0].clone()))
     }
 }

@@ -41,11 +41,12 @@ pub async fn submit_ai(
 ) -> impl (Responder) {
     // Authenticate the user
     let user = match get_current_user(&req, &state).await {
-        None => {
+        Ok(None) => {
             return HttpResponse::Unauthorized()
                 .json(AiResult::Failed("You are not logged in.".to_string()));
         }
-        Some(user) => user,
+        Err(e) => return HttpResponse::InternalServerError().body(format!("{}", e)),
+        Ok(Some(user)) => user,
     };
     println!("Found an user matching the cookies");
 
@@ -73,7 +74,7 @@ pub async fn submit_ai(
 
     let new_ai = NewAi {
         owner: user.id,
-        code: &code,
+        code,
     };
 
     let owner = user.id;

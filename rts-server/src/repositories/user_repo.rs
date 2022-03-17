@@ -17,7 +17,7 @@ impl UserRepository {
         .fetch_all(pool)
         .await
         .map_err(|_| {
-            WebServerException::SqlException(format!(
+            WebServerException::Sql(format!(
                 "Failed to fetch users with username {}",
                 username
             ))
@@ -30,14 +30,12 @@ impl UserRepository {
             .fetch_all(pool)
             .await
             .map_err(|_| {
-                WebServerException::SqlException(format!("Failed to fetch users with id {}", id))
+                WebServerException::Sql(format!("Failed to fetch users with id {}", id))
             })
     }
 
-    pub async fn insert<'a>( // @TODO remove this lifetime
-        pool: &PgPool,
-        user: NewUser<'a>,
-    ) -> Result<(), WebServerException> {
+    pub async fn insert(pool: &PgPool, user: NewUser) -> Result<(), WebServerException> {
+        let username = user.username.clone();
         sqlx::query("INSERT INTO users (username, password, email) VALUES ($1, $2, $3)")
             .bind(user.username)
             .bind(user.password)
@@ -46,7 +44,7 @@ impl UserRepository {
             .await
             .map(|_| ())
             .map_err(|_| {
-                WebServerException::SqlException(format!("Failed to insert user {:?}", user))
+                WebServerException::Sql(format!("Failed to insert user {:?}", username))
             })
     }
 }

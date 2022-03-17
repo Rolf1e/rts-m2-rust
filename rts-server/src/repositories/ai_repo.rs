@@ -6,10 +6,8 @@ use crate::models::ai::NewAi;
 pub struct AiRepository;
 
 impl AiRepository {
-    pub async fn insert<'a>( // @TODO remove this lifetime
-        pool: &PgPool,
-        ai: NewAi<'a>,
-    ) -> Result<(), WebServerException> {
+    pub async fn insert(pool: &PgPool, ai: NewAi) -> Result<(), WebServerException> {
+        let owner = ai.owner;
         sqlx::query("INSERT INTO ais (owner, code) VALUES ($1, $2)")
             .bind(ai.owner)
             .bind(ai.code)
@@ -17,9 +15,7 @@ impl AiRepository {
             .await
             .map(|_| ())
             .map_err(|_| {
-                WebServerException::SqlException(format!("Failed to insert ai {:?}", ai))
+                WebServerException::Sql(format!("Failed to insert ai {:?}", owner))
             })
     }
-
-
 }

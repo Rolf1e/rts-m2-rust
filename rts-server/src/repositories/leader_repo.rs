@@ -15,7 +15,7 @@ impl MatchRepository {
             .await
             .map(|_| ())
             .map_err(|_| {
-                WebServerException::SqlException(format!("Failed to insert match {:?}", new_match))
+                WebServerException::Sql(format!("Failed to insert match {:?}", new_match))
             })
     }
 
@@ -37,7 +37,7 @@ impl MatchRepository {
             .fetch_all(pool)
             .await
             .map_err(|_| {
-                WebServerException::SqlException(String::from("Failed to fetch leader board"))
+                WebServerException::Sql(String::from("Failed to fetch leader board"))
             })
     }
 }

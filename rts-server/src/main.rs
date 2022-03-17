@@ -1,8 +1,8 @@
 pub mod controllers;
 pub mod dto;
+pub mod exceptions;
 pub mod models;
 pub mod repositories;
-pub mod exceptions;
 
 use crate::controllers::ai_controller::submit_ai;
 use crate::controllers::leader_board_controller::leaderboard;
@@ -17,7 +17,6 @@ use argon2::{self, Config};
 
 use sqlx::postgres::{PgPool, PgPoolOptions};
 
-
 pub struct AppState<'a> {
     argon2_config: Config<'a>,
     tokens: Arc<RwLock<HashMap<String, i32>>>,
@@ -26,9 +25,9 @@ pub struct AppState<'a> {
 
 async fn create_pool(database_url: &str) -> PgPool {
     PgPoolOptions::new()
-        .connect(&database_url)
+        .connect(database_url)
         .await
-        .expect(&format!("Failed to connect to database {}", &database_url))
+        .unwrap_or_else(|_| panic!("Failed to connect to database {}", &database_url))
 }
 
 #[actix_web::main]
