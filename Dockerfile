@@ -5,7 +5,6 @@ WORKDIR /usr/src/rts-m2-rust
 # Install the requirements
 # utilities to build the back
 RUN apt-get update -y && apt-get install libpq5 -y
-RUN cargo install diesel_cli --no-default-features --features postgres
 # utilities to build the front
 RUN cargo install trunk
 RUN rustup target add wasm32-unknown-unknown
@@ -30,7 +29,6 @@ RUN rm -rf rts-server/src rts-front/src rts-core/src
 ADD rts-core/src rts-core/src
 
 ADD rts-server/src rts-server/src
-ADD rts-server/migrations rts-server/migrations
 ADD rts-server/static rts-server/static
 
 ADD rts-front/src rts-front/src
@@ -46,7 +44,6 @@ RUN cp target/release/rts-server /usr/bin/
 
 CMD echo "=> Running migrations" && \
     cd rts-server && \
-    diesel migration run && \
     cd .. && \
     echo "=> Starting server" && \
     rts-server

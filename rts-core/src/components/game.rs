@@ -58,7 +58,6 @@ where
     pub fn get_players(&self) -> &[InnerPlayer] {
         &self.players
     }
-
     pub fn console_display(&self) -> Result<(), RtsException> {
         let play_ground_ptr = Rc::clone(&self.map);
         let play_ground = play_ground_ptr.borrow();
