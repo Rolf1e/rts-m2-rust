@@ -24,14 +24,15 @@ fn prepare_dto_for_insert(dto: NewMatchDto) -> NewMatchDo {
         game: dto.game,
         player: dto.player,
         score: dto.score,
+        winner: dto.winner,
     }
 }
 
 #[get("/leaderboard/{max}")]
 pub async fn leaderboard(state: web::Data<AppState<'_>>, max: web::Path<i32>) -> impl Responder {
-    let _max: i64 = max.abs().into();
+    let max: i64 = max.abs().into();
 
-    let leader_board = MatchRepository::find_all(&state.pg_pool)
+    let leader_board = MatchRepository::fetch_leader_board(&state.pg_pool, max)
         .await
         .map(transform_to_dto);
 
@@ -52,8 +53,8 @@ fn transform_to_dto(leader_board: Vec<LeaderBoardRowDo>) -> Vec<LeaderBoardDto> 
         .map(|row| LeaderBoardDto {
             username: row.name.clone(),
             score: row.total_score,
-            wins: 0,
-            looses: 0,
+            wins: row.wins,
+            looses: row.looses,
         })
         .collect()
 }

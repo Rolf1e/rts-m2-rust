@@ -30,6 +30,7 @@ async fn create_pool(database_url: &str) -> PgPool {
         .unwrap_or_else(|_| panic!("Failed to connect to database {}", &database_url))
 }
 
+/// Comment 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     println!("Starting the rts web server");

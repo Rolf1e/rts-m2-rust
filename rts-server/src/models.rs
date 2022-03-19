@@ -45,6 +45,8 @@ pub mod game {
     pub struct LeaderBoardRowDo {
         pub name: String,
         pub total_score: i64,
+        pub wins: i64,
+        pub looses: i64,
     }
 
     #[derive(Debug)]
@@ -52,5 +54,6 @@ pub mod game {
         pub game: i32,
         pub player: i32,
         pub score: i32,
+        pub winner: bool,
     }
 }

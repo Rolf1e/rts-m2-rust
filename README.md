@@ -2,5 +2,5 @@
 
 # load tables 
 ```sh
-psql postgres://{docker_ip}:password@postgresql/postgres -f create_table.sql
+psql postgres://{user}:{password}@{docker_ip}/postgres -f create_table.sql
 ```

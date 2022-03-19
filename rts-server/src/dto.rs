@@ -78,6 +78,7 @@ pub mod input {
         pub game: i32,
         pub player: i32,
         pub score: i32,
+        pub winner: bool,
     }
 
 }
