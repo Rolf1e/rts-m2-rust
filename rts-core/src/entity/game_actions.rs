@@ -2,6 +2,7 @@ use crate::components::play_ground::{Coordinate, Identifier};
 
 use super::unit::{Unit, UnitType};
 
+#[derive(Debug,PartialEq)]
 pub enum Action {
     // Unit related
     BuyUnit(UnitType),

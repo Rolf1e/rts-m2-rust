@@ -82,8 +82,10 @@ where
     fn play_with_all_players(&self) -> Result<(), RtsException> {
         for (i, player) in self.players.iter().enumerate() {
             let player_ptr = Rc::clone(player);
-            let action = player_ptr.borrow().request()?;
-            self.play(i, action)?;
+            let actions = player_ptr.borrow().request()?;
+            for action in actions {
+                self.play(i, action)?;
+            }
         }
 
         Ok(())
@@ -216,10 +218,10 @@ mod tests_play_ground {
 
     #[test]
     pub fn should_play_with_ai() {
-        let mut tigran = Player::new("Tigran".to_string(), TurnStrategy::AI);
+        let mut tigran = Player::new("Tigran".to_string(), TurnStrategy::AI(String::new()), String::new());
         tigran.update_money(100);
 
-        let emma = Player::new("Emma".to_string(), TurnStrategy::AI);
+        let emma = Player::new("Emma".to_string(), TurnStrategy::AI(String::new()), String::new());
 
         let game = Game::new(vec![tigran, emma], vec![TestClientGameState()]);
 
@@ -230,7 +232,7 @@ mod tests_play_ground {
 
     #[test]
     pub fn should_not_find_user() {
-        let tigran = Player::new("Tigran".to_string(), TurnStrategy::AI);
+        let tigran = Player::new("Tigran".to_string(), TurnStrategy::AI(String::new()), String::new());
         let game = Game::new(vec![tigran], vec![TestClientGameState()]);
 
         let res = game.play(1, Action::BuyUnit(UnitType::Classic));

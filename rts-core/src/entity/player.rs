@@ -4,8 +4,10 @@ use crate::exceptions::RtsException;
 use crate::entity::game_actions::Action;
 
 pub trait TurnStrategyRequester {
-    fn request(&self) -> Result<Action, RtsException>;
+    fn request(&self) -> Result<Vec<Action>, RtsException>;
 }
+
+pub type AICode = String;
 
 pub struct Player<TurnStrategy>
 where
@@ -14,21 +16,23 @@ where
     name: String,
     wallet: Wallet,
     turn_strategy_requester: TurnStrategy,
+    ai_code: AICode,
 }
 
 impl<TurnStrategy> Player<TurnStrategy>
 where
     TurnStrategy: TurnStrategyRequester,
 {
-    pub fn new(name: String, turn_strategy_requester: TurnStrategy) -> Self {
+    pub fn new(name: String, turn_strategy_requester: TurnStrategy, ai_code: AICode) -> Self {
         Player {
             name,
             wallet: Wallet::new(),
             turn_strategy_requester,
+            ai_code
         }
     }
 
-    pub fn request(&self) -> Result<Action, RtsException> {
+    pub fn request(&self) -> Result<Vec<Action>, RtsException> {
         self.turn_strategy_requester.request()
     }
 
@@ -86,21 +90,21 @@ mod test_wallet {
 
     pub struct TestTurnStrategyRequester;
     impl TurnStrategyRequester for TestTurnStrategyRequester {
-        fn request(&self) -> Result<Action, RtsException> {
-            Ok(Action::GiveMoneyBatch)
+        fn request(&self) -> Result<Vec<Action>, RtsException> {
+            Ok(vec![Action::GiveMoneyBatch])
         }
     }
 
     #[test]
     pub fn should_earn_money() {
-        let mut player = Player::new("Tigran".to_string(), TestTurnStrategyRequester);
+        let mut player = Player::new("Tigran".to_string(), TestTurnStrategyRequester, String::new());
         player.update_money(10);
         assert_eq!(&10, player.get_money())
     }
 
     #[test]
     pub fn should_loose_money() {
-        let mut player = Player::new("Tigran".to_string(), TestTurnStrategyRequester);
+        let mut player = Player::new("Tigran".to_string(), TestTurnStrategyRequester, String::new());
         player.update_money(10);
         player.update_money(-8);
         assert_eq!(&2, player.get_money())
